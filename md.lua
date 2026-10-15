@@ -1,4 +1,3 @@
-local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -8,78 +7,48 @@ local TextChatService = game:GetService("TextChatService")
 local plr = Players.LocalPlayer
 
 local MD_PLACE_ID = 120851538706364
-local SCRIPT_URL = "https://raw.githubusercontent.com/Zep-Soft/Murder-duels/refs/heads/main/md.lua"
 
 if game.PlaceId ~= MD_PLACE_ID then
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "ZepNotMD"
+    gui.ResetOnSpawn = false
+    gui.Parent = CoreGui
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    frame.BackgroundTransparency = 0
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 999
+    frame.Parent = gui
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -40, 0, 60)
+    title.Position = UDim2.new(0, 20, 0.5, -70)
+    title.BackgroundTransparency = 1
+    title.Text = "СКРИПТ НЕ ДЛЯ ЭТОЙ ИГРЫ"
+    title.TextColor3 = Color3.fromRGB(255, 50, 100)
+    title.Font = Enum.Font.GothamBlack
+    title.TextSize = 22
+    title.TextWrapped = true
+    title.Parent = frame
+
+    local info = Instance.new("TextLabel")
+    info.Size = UDim2.new(1, -40, 0, 80)
+    info.Position = UDim2.new(0, 20, 0.5, 0)
+    info.BackgroundTransparency = 1
+    info.Text = "Этот Zep Hub работает только в Murder Duels.\nЗайди в MD и запусти скрипт снова."
+    info.TextColor3 = Color3.fromRGB(245, 245, 255)
+    info.Font = Enum.Font.Gotham
+    info.TextSize = 14
+    info.TextWrapped = true
+    info.Parent = frame
+
+    task.wait(2.5)
+
     pcall(function()
-        queue_on_teleport('loadstring(game:HttpGet("' .. SCRIPT_URL .. '"))()')
+        plr:Kick("Zep Hub: скрипт только для Murder Duels")
     end)
-
-    local TpGui = Instance.new("ScreenGui")
-    TpGui.Name = "ZepTeleport"
-    TpGui.ResetOnSpawn = false
-    TpGui.Parent = CoreGui
-
-    local TpFrame = Instance.new("Frame")
-    TpFrame.Size = UDim2.new(0, 340, 0, 110)
-    TpFrame.Position = UDim2.new(0.5, -170, 0.5, -55)
-    TpFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
-    TpFrame.BorderSizePixel = 0
-    TpFrame.Parent = TpGui
-
-    local TpC = Instance.new("UICorner")
-    TpC.CornerRadius = UDim.new(0, 14)
-    TpC.Parent = TpFrame
-
-    local TpS = Instance.new("UIStroke")
-    TpS.Color = Color3.fromRGB(255, 50, 100)
-    TpS.Thickness = 1.5
-    TpS.Parent = TpFrame
-
-    local TpTitle = Instance.new("TextLabel")
-    TpTitle.Size = UDim2.new(1, -20, 0, 30)
-    TpTitle.Position = UDim2.new(0, 14, 0, 12)
-    TpTitle.BackgroundTransparency = 1
-    TpTitle.Text = "ZEP HUB"
-    TpTitle.TextColor3 = Color3.fromRGB(255, 50, 100)
-    TpTitle.Font = Enum.Font.GothamBlack
-    TpTitle.TextSize = 16
-    TpTitle.TextXAlignment = Enum.TextXAlignment.Left
-    TpTitle.Parent = TpFrame
-
-    local TpStatus = Instance.new("TextLabel")
-    TpStatus.Size = UDim2.new(1, -20, 0, 20)
-    TpStatus.Position = UDim2.new(0, 14, 0, 44)
-    TpStatus.BackgroundTransparency = 1
-    TpStatus.Text = "Телепорт в Murder Duels..."
-    TpStatus.TextColor3 = Color3.fromRGB(245, 245, 255)
-    TpStatus.Font = Enum.Font.Gotham
-    TpStatus.TextSize = 12
-    TpStatus.TextXAlignment = Enum.TextXAlignment.Left
-    TpStatus.Parent = TpFrame
-
-    local TpInfo = Instance.new("TextLabel")
-    TpInfo.Size = UDim2.new(1, -20, 0, 20)
-    TpInfo.Position = UDim2.new(0, 14, 0, 68)
-    TpInfo.BackgroundTransparency = 1
-    TpInfo.Text = "Скрипт загрузится автоматически"
-    TpInfo.TextColor3 = Color3.fromRGB(130, 130, 160)
-    TpInfo.Font = Enum.Font.Gotham
-    TpInfo.TextSize = 10
-    TpInfo.TextXAlignment = Enum.TextXAlignment.Left
-    TpInfo.Parent = TpFrame
-
-    task.wait(1.5)
-
-    local ok, err = pcall(function()
-        TeleportService:Teleport(MD_PLACE_ID, plr)
-    end)
-
-    if not ok then
-        TpStatus.Text = "Ошибка: " .. tostring(err)
-        TpStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
-        TpInfo.Text = "Зайди в Murder Duels вручную"
-    end
 
     return
 end
@@ -875,8 +844,7 @@ local function HasLineOfSight(targetChar)
         if result.Instance:IsDescendantOf(targetChar) then
             return true
         end
-        return false
-    end
+        return false    end
     return true
 end
 
