@@ -38,7 +38,6 @@ local Config = {
     AimHold = false,
     HeadChance = 75,
     ESP = false,
-    Tracer = false,
     HeadDot = false,
     AntiAFK = false,
     IgnoreWalls = false,
@@ -761,7 +760,7 @@ local PageVisuals = MakePage("Visuals")
 local PageConfig = MakePage("Config")
 
 MakeTab("Главная", "аим и наводка", "Main")
-MakeTab("Визуалы", "esp и трассеры", "Visuals")
+MakeTab("Визуалы", "esp", "Visuals")
 MakeTab("Конфиг", "настройки", "Config")
 
 local function GetTargetPart(targetChar)
@@ -985,10 +984,6 @@ MakeToggle(PageVisuals, "ESP игроков (без тиммейтов)", false,
     Config.ESP = v
 end)
 
-MakeToggle(PageVisuals, "Tracer (линия прицела)", false, function(v)
-    Config.Tracer = v
-end)
-
 MakeToggle(PageVisuals, "Head Dot (точка на голове)", false, function(v)
     Config.HeadDot = v
 end)
@@ -1003,12 +998,8 @@ local function ClearESP()
 end
 
 RunService.Heartbeat:Connect(function()
-    if Config.ESP or Config.Tracer or Config.HeadDot then
+    if Config.ESP or Config.HeadDot then
         ClearESP()
-
-        local cam = workspace.CurrentCamera
-        local myChar = plr.Character
-        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= plr and p.Character and not IsTeammate(p) then
@@ -1018,10 +1009,10 @@ RunService.Heartbeat:Connect(function()
                 if hum and hum.Health > 0 and head then
                     if Config.ESP then
                         local hl = Instance.new("Highlight")
-                        hl.FillColor = Color3.fromRGB(120, 0, 0)
-                        hl.OutlineColor = Color3.fromRGB(80, 0, 0)
-                        hl.FillTransparency = 0.5
-                        hl.OutlineTransparency = 0.2
+                        hl.FillColor = Color3.fromRGB(255, 0, 0)
+                        hl.OutlineColor = Color3.fromRGB(255, 0, 0)
+                        hl.FillTransparency = 0.4
+                        hl.OutlineTransparency = 0
                         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         hl.Parent = p.Character
                         table.insert(espObjects, hl)
@@ -1035,7 +1026,7 @@ RunService.Heartbeat:Connect(function()
 
                         local circle = Instance.new("Frame")
                         circle.Size = UDim2.new(1, 0, 1, 0)
-                        circle.BackgroundColor3 = Color3.fromRGB(120, 0, 0)
+                        circle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
                         circle.BorderSizePixel = 0
                         circle.Parent = dot
 
@@ -1044,30 +1035,6 @@ RunService.Heartbeat:Connect(function()
                         cc.Parent = circle
 
                         table.insert(espObjects, dot)
-                    end
-
-                    if Config.Tracer and myHRP then
-                        local myScreenPos, myOnScreen = cam:WorldToViewportPoint(myHRP.Position)
-                        local enemyScreenPos, enemyOnScreen = cam:WorldToViewportPoint(head.Position)
-
-                        if myOnScreen and enemyOnScreen then
-                            local dist = (Vector2.new(myScreenPos.X, myScreenPos.Y) - Vector2.new(enemyScreenPos.X, enemyScreenPos.Y)).Magnitude
-                            local midX = (myScreenPos.X + enemyScreenPos.X) / 2
-                            local midY = (myScreenPos.Y + enemyScreenPos.Y) / 2
-                            local angle = math.atan2(enemyScreenPos.Y - myScreenPos.Y, enemyScreenPos.X - myScreenPos.X)
-
-                            local tracer = Instance.new("Frame")
-                            tracer.Size = UDim2.new(0, dist, 0, 1)
-                            tracer.Position = UDim2.new(0, midX - dist / 2, 0, midY)
-                            tracer.AnchorPoint = Vector2.new(0.5, 0.5)
-                            tracer.Rotation = math.deg(angle)
-                            tracer.BackgroundColor3 = Color3.fromRGB(120, 0, 0)
-                            tracer.BorderSizePixel = 0
-                            tracer.ZIndex = 5
-                            tracer.Parent = ScreenGui
-
-                            table.insert(espObjects, tracer)
-                        end
                     end
                 end
             end
