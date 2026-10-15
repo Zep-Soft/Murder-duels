@@ -72,12 +72,13 @@ if game.PlaceId ~= MD_PLACE_ID then
     task.wait(1.5)
 
     local ok, err = pcall(function()
-        TeleportService:Teleport(MD_PLACE_ID)
+        TeleportService:Teleport(MD_PLACE_ID, plr)
     end)
 
     if not ok then
         TpStatus.Text = "Ошибка: " .. tostring(err)
         TpStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+        TpInfo.Text = "Зайди в Murder Duels вручную"
     end
 
     return
