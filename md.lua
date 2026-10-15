@@ -43,23 +43,25 @@ local Config = {
 }
 
 local MyTeam = nil
+local MyTeamColor = nil
 local CurrentTarget = nil
 local lastValidTime = 0
 
 local function TrySetTeam(text)
-    if not text or MyTeam then return end
+    if not text then return end
 
-    if text:find("'A'", 1, true) or text:find('"A"', 1, true) 
-       or text:find("team a", 1, true) or text:find("Team A", 1, true) then
-        MyTeam = "A"
-        print("[Zep Hub] Team:", MyTeam)
-        return
+    local newTeam = nil
+
+    if text:find("'A'", 1, true) or text:find('"A"', 1, true) then
+        newTeam = "A"
+    elseif text:find("'B'", 1, true) or text:find('"B"', 1, true) then
+        newTeam = "B"
     end
-    if text:find("'B'", 1, true) or text:find('"B"', 1, true) 
-       or text:find("team b", 1, true) or text:find("Team B", 1, true) then
-        MyTeam = "B"
+
+    if newTeam and newTeam ~= MyTeam then
+        MyTeam = newTeam
+        CurrentTarget = nil
         print("[Zep Hub] Team:", MyTeam)
-        return
     end
 end
 
@@ -78,7 +80,6 @@ task.spawn(function()
                 for _, obj in pairs(gui:GetDescendants()) do
                     if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
                         TrySetTeam(obj.Text)
-                        if MyTeam then return end
                     end
                 end
             end
@@ -86,20 +87,52 @@ task.spawn(function()
     end
 
     task.spawn(function()
-        while not MyTeam do
+        while true do
             task.wait(0.5)
-            scanAll()
+            if not MyTeam then
+                scanAll()
+            end
         end
     end)
 end)
 
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if plr.Team and plr.Team.Name then
+            local n = plr.Team.Name
+            if n == "A" or n:find("A") then
+                if MyTeam ~= "A" then
+                    MyTeam = "A"
+                    CurrentTarget = nil
+                    print("[Zep Hub] Team (Player.Team):", MyTeam)
+                end
+            elseif n == "B" or n:find("B") then
+                if MyTeam ~= "B" then
+                    MyTeam = "B"
+                    CurrentTarget = nil
+                    print("[Zep Hub] Team (Player.Team):", MyTeam)
+                end
+            end
+            MyTeamColor = plr.TeamColor
+        end
+    end
+end)
+
 local function IsTeammate(p)
     if not MyTeam then return false end
-    if not p.Team then return false end
-    local name = p.Team.Name
-    if name == MyTeam then return true end
-    if name:find("A") and MyTeam == "A" then return true end
-    if name:find("B") and MyTeam == "B" then return true end
+
+    if p.Team and p.Team.Name then
+        local n = p.Team.Name:upper()
+        if n == MyTeam then return true end
+        if n:find("A") and MyTeam == "A" then return true end
+        if n:find("B") and MyTeam == "B" then return true end
+    end
+
+    if MyTeamColor and p.TeamColor == MyTeamColor then
+        return true
+    end
+
     return false
 end
 
@@ -751,9 +784,8 @@ local function HasLineOfSight(targetChar)
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
     if not myHRP then return false end
 
-    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
     local targetHead = targetChar:FindFirstChild("Head")
-    if not targetHRP or not targetHead then return false end
+    if not targetHead then return false end
 
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = {myChar}
@@ -786,9 +818,8 @@ local function GetClosestTarget()
         local stillValid = true
         local hum = CurrentTarget:FindFirstChildOfClass("Humanoid")
         local head = CurrentTarget:FindFirstChild("Head")
-        local targetHRP = CurrentTarget:FindFirstChild("HumanoidRootPart")
 
-        if not hum or hum.Health <= 0 or not head or not targetHRP then
+        if not hum or hum.Health <= 0 or not head then
             stillValid = false
         else
             local player = Players:GetPlayerFromCharacter(CurrentTarget)
@@ -837,7 +868,6 @@ local function GetClosestTarget()
 
                         if screenDist <= FOV_SIZE then
                             local canTarget = true
-
                             if Config.IgnoreWalls then
                                 canTarget = HasLineOfSight(p.Character)
                             end
@@ -995,6 +1025,7 @@ end)
 MakeSection(PageConfig, "Управление")
 MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 180, 50), function()
     MyTeam = nil
+    MyTeamColor = nil
 end)
 
 MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), function()
