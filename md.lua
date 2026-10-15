@@ -38,6 +38,72 @@ local Config = {
     AntiAFK = false,
 }
 
+local MyTeam = nil
+local CurrentTarget = nil
+
+local function ParseTeamFromChat(text)
+    if not text then return nil end
+    if text:find('"A"', 1, true) then return "A" end
+    if text:find('"B"', 1, true) then return "B" end
+    return nil
+end
+
+task.spawn(function()
+    local playerGui = plr:WaitForChild("PlayerGui")
+
+    local function hookGui(gui)
+        if not gui then return end
+        gui.DescendantAdded:Connect(function(obj)
+            if obj:IsA("TextLabel") then
+                task.wait(0.05)
+                local team = ParseTeamFromChat(obj.Text)
+                if team and not MyTeam then
+                    MyTeam = team
+                    print("[Zep Hub] My team:", MyTeam)
+                end
+            end
+        end)
+    end
+
+    local chat = playerGui:WaitForChild("Chat", 15)
+    if chat then hookGui(chat) end
+
+    local rbxChat = playerGui:FindFirstChild("RBXGeneral")
+    if rbxChat then hookGui(rbxChat) end
+
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if not MyTeam then
+                for _, gui in pairs(playerGui:GetChildren()) do
+                    if gui:IsA("ScreenGui") then
+                        for _, obj in pairs(gui:GetDescendants()) do
+                            if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
+                                local team = ParseTeamFromChat(obj.Text)
+                                if team then
+                                    MyTeam = team
+                                    print("[Zep Hub] My team:", MyTeam)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+local function IsTeammate(p)
+    if not MyTeam then return false end
+    if not p.Team then return false end
+    local name = p.Team.Name
+    if name == MyTeam then return true end
+    if name:find("A") and MyTeam == "A" then return true end
+    if name:find("B") and MyTeam == "B" then return true end
+    return false
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ZepHubUI"
 ScreenGui.ResetOnSpawn = false
@@ -60,9 +126,9 @@ FOVCorner.CornerRadius = UDim.new(1, 0)
 FOVCorner.Parent = FOVCircle
 
 local FOVStroke = Instance.new("UIStroke")
-FOVStroke.Color = Color3.fromRGB(255, 50, 100)
+FOVStroke.Color = Color3.fromRGB(255, 255, 255)
 FOVStroke.Thickness = 4
-FOVStroke.Transparency = 0.1
+FOVStroke.Transparency = 0
 FOVStroke.Parent = FOVCircle
 
 local FOVGradient = Instance.new("UIGradient")
@@ -680,33 +746,112 @@ local function GetTargetPart(targetChar)
     end
 end
 
+local function HasLineOfSight(targetChar)
+    local myChar = plr.Character
+    if not myChar then return false end
+    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+    local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+        or targetChar:FindFirstChild("Head")
+    if not myHRP or not targetHRP then return false end
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {myChar, targetChar}
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local dir = targetHRP.Position - myHRP.Position
+    local result = workspace:Raycast(myHRP.Position, dir, rayParams)
+
+    if result then
+        return false
+    end
+    return true
+end
+
 local function GetClosestTarget()
     local cam = workspace.CurrentCamera
+    local myChar = plr.Character
+    if not myChar then return nil, nil end
+    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return nil, nil end
+
+    local myPos = myHRP.Position
     local center = cam.ViewportSize / 2
+
+    if CurrentTarget then
+        local stillValid = true
+        local hum = CurrentTarget:FindFirstChildOfClass("Humanoid")
+        local head = CurrentTarget:FindFirstChild("Head")
+        local targetHRP = CurrentTarget:FindFirstChild("HumanoidRootPart")
+
+        if not hum or hum.Health <= 0 or not head or not targetHRP then
+            stillValid = false
+        else
+            local player = Players:GetPlayerFromCharacter(CurrentTarget)
+            if not player or IsTeammate(player) then
+                stillValid = false
+            elseif not HasLineOfSight(CurrentTarget) then
+                stillValid = false
+            else
+                local sp, onScreen = cam:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                    if d > FOV_SIZE then
+                        stillValid = false
+                    end
+                else
+                    stillValid = false
+                end
+            end
+        end
+
+        if not stillValid then
+            CurrentTarget = nil
+        end
+    end
+
     local bestChar = nil
     local bestPart = nil
-    local bestScore = math.huge
+    local bestDist = math.huge
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= plr and p.Character then
+        if p ~= plr and p.Character and not IsTeammate(p) then
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
                 local head = p.Character:FindFirstChild("Head")
-                if head then
-                    local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
+                local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
+
+                if head and targetHRP then
+                    local sp, onScreen = cam:WorldToViewportPoint(head.Position)
                     if onScreen then
-                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                        if dist < FOV_SIZE and dist < bestScore then
-                            bestScore = dist
-                            bestChar = p.Character
-                            bestPart = GetTargetPart(p.Character)
+                        local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+
+                        if screenDist <= FOV_SIZE then
+                            local worldDist = (targetHRP.Position - myPos).Magnitude
+
+                            if worldDist < bestDist then
+                                if HasLineOfSight(p.Character) then
+                                    bestDist = worldDist
+                                    bestChar = p.Character
+                                    bestPart = GetTargetPart(p.Character)
+                                end
+                            end
                         end
                     end
                 end
             end
         end
     end
-    return bestChar, bestPart
+
+    if bestChar then
+        CurrentTarget = bestChar
+        return bestChar, bestPart
+    end
+
+    if CurrentTarget then
+        return CurrentTarget, GetTargetPart(CurrentTarget)
+    end
+
+    return nil, nil
 end
 
 local aimHeld = false
@@ -751,6 +896,34 @@ MakeToggle(PageMain, "Aim Hold (на ПКМ)", false, function(v)
     UpdateFOVVisibility()
 end)
 
+MakeSection(PageMain, "Статус")
+local TeamLabel = Instance.new("TextLabel")
+TeamLabel.Size = UDim2.new(1, 0, 0, 30)
+TeamLabel.BackgroundColor3 = Theme.Surface2
+TeamLabel.Text = "Команда: определяется..."
+TeamLabel.TextColor3 = Theme.Text
+TeamLabel.Font = Enum.Font.GothamMedium
+TeamLabel.TextSize = 12
+TeamLabel.ZIndex = 6
+TeamLabel.Parent = PageMain
+
+local TLC = Instance.new("UICorner")
+TLC.CornerRadius = UDim.new(0, 10)
+TLC.Parent = TeamLabel
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if MyTeam then
+            TeamLabel.Text = "Команда: " .. MyTeam
+            TeamLabel.TextColor3 = Theme.Green
+        else
+            TeamLabel.Text = "Команда: не определена"
+            TeamLabel.TextColor3 = Theme.TextDim
+        end
+    end
+end)
+
 MakeSection(PageMain, "Прочее")
 MakeToggle(PageMain, "Anti-AFK", false, function(v)
     Config.AntiAFK = v
@@ -768,7 +941,7 @@ MakeToggle(PageMain, "Anti-AFK", false, function(v)
 end)
 
 MakeSection(PageVisuals, "ESP")
-MakeToggle(PageVisuals, "ESP игроков", false, function(v)
+MakeToggle(PageVisuals, "ESP игроков (без тиммейтов)", false, function(v)
     Config.ESP = v
 end)
 
@@ -782,7 +955,7 @@ RunService.Heartbeat:Connect(function()
         espObjects = {}
 
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= plr and p.Character then
+            if p ~= plr and p.Character and not IsTeammate(p) then
                 local hum = p.Character:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
                     local hl = Instance.new("Highlight")
@@ -803,6 +976,10 @@ RunService.Heartbeat:Connect(function()
 end)
 
 MakeSection(PageConfig, "Управление")
+MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 180, 50), function()
+    MyTeam = nil
+end)
+
 MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), function()
     Config.AimLock = false
     Config.AimHold = false
