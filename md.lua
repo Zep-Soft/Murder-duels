@@ -29,6 +29,8 @@ local Theme = {
 
 local FOV_SIZE = 250
 local RENDER_PRIORITY = 3000
+local HOLD_MULT = 1.5
+local HOLD_TIME = 0.5
 
 local Config = {
     AimLock = false,
@@ -40,11 +42,14 @@ local Config = {
 
 local MyTeam = nil
 local CurrentTarget = nil
+local lastValidTime = 0
 
 local function ParseTeamFromChat(text)
     if not text then return nil end
-    if text:find('"A"', 1, true) then return "A" end
-    if text:find('"B"', 1, true) then return "B" end
+    if text:find("'A'", 1, true) or text:find('"A"', 1, true) then return "A" end
+    if text:find("'B'", 1, true) or text:find('"B"', 1, true) then return "B" end
+    if text:find("Team A", 1, true) then return "A" end
+    if text:find("Team B", 1, true) then return "B" end
     return nil
 end
 
@@ -750,18 +755,23 @@ local function HasLineOfSight(targetChar)
     local myChar = plr.Character
     if not myChar then return false end
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return false end
+
     local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
-        or targetChar:FindFirstChild("Head")
-    if not myHRP or not targetHRP then return false end
+    local targetHead = targetChar:FindFirstChild("Head")
+    if not targetHRP or not targetHead then return false end
 
     local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {myChar, targetChar}
+    rayParams.FilterDescendantsInstances = {myChar}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-    local dir = targetHRP.Position - myHRP.Position
+    local dir = targetHead.Position - myHRP.Position
     local result = workspace:Raycast(myHRP.Position, dir, rayParams)
 
     if result then
+        if result.Instance:IsDescendantOf(targetChar) then
+            return true
+        end
         return false
     end
     return true
@@ -776,6 +786,7 @@ local function GetClosestTarget()
 
     local myPos = myHRP.Position
     local center = cam.ViewportSize / 2
+    local now = tick()
 
     if CurrentTarget then
         local stillValid = true
@@ -789,24 +800,25 @@ local function GetClosestTarget()
             local player = Players:GetPlayerFromCharacter(CurrentTarget)
             if not player or IsTeammate(player) then
                 stillValid = false
-            elseif not HasLineOfSight(CurrentTarget) then
-                stillValid = false
-            else
-                local sp, onScreen = cam:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                    if d > FOV_SIZE then
-                        stillValid = false
-                    end
-                else
-                    stillValid = false
-                end
             end
         end
 
-        if not stillValid then
-            CurrentTarget = nil
+        if stillValid then
+            local sp, onScreen = cam:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                if d <= FOV_SIZE * HOLD_MULT then
+                    lastValidTime = now
+                    return CurrentTarget, GetTargetPart(CurrentTarget)
+                end
+            end
+
+            if now - lastValidTime < HOLD_TIME then
+                return CurrentTarget, GetTargetPart(CurrentTarget)
+            end
         end
+
+        CurrentTarget = nil
     end
 
     local bestChar = nil
@@ -826,10 +838,9 @@ local function GetClosestTarget()
                         local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
 
                         if screenDist <= FOV_SIZE then
-                            local worldDist = (targetHRP.Position - myPos).Magnitude
-
-                            if worldDist < bestDist then
-                                if HasLineOfSight(p.Character) then
+                            if HasLineOfSight(p.Character) then
+                                local worldDist = (targetHRP.Position - myPos).Magnitude
+                                if worldDist < bestDist then
                                     bestDist = worldDist
                                     bestChar = p.Character
                                     bestPart = GetTargetPart(p.Character)
@@ -844,11 +855,8 @@ local function GetClosestTarget()
 
     if bestChar then
         CurrentTarget = bestChar
+        lastValidTime = now
         return bestChar, bestPart
-    end
-
-    if CurrentTarget then
-        return CurrentTarget, GetTargetPart(CurrentTarget)
     end
 
     return nil, nil
