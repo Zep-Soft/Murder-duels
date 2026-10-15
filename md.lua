@@ -3,6 +3,7 @@ local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
+local TextChatService = game:GetService("TextChatService")
 local plr = Players.LocalPlayer
 
 if _G.ZepHub_Loaded then
@@ -38,63 +39,56 @@ local Config = {
     HeadChance = 75,
     ESP = false,
     AntiAFK = false,
+    IgnoreWalls = false,
 }
 
 local MyTeam = nil
 local CurrentTarget = nil
 local lastValidTime = 0
 
-local function ParseTeamFromChat(text)
-    if not text then return nil end
-    if text:find("'A'", 1, true) or text:find('"A"', 1, true) then return "A" end
-    if text:find("'B'", 1, true) or text:find('"B"', 1, true) then return "B" end
-    if text:find("Team A", 1, true) then return "A" end
-    if text:find("Team B", 1, true) then return "B" end
-    return nil
+local function TrySetTeam(text)
+    if not text or MyTeam then return end
+
+    if text:find("'A'", 1, true) or text:find('"A"', 1, true) 
+       or text:find("team a", 1, true) or text:find("Team A", 1, true) then
+        MyTeam = "A"
+        print("[Zep Hub] Team:", MyTeam)
+        return
+    end
+    if text:find("'B'", 1, true) or text:find('"B"', 1, true) 
+       or text:find("team b", 1, true) or text:find("Team B", 1, true) then
+        MyTeam = "B"
+        print("[Zep Hub] Team:", MyTeam)
+        return
+    end
 end
+
+TextChatService.MessageReceived:Connect(function(msg)
+    pcall(function()
+        TrySetTeam(msg.Text)
+    end)
+end)
 
 task.spawn(function()
     local playerGui = plr:WaitForChild("PlayerGui")
 
-    local function hookGui(gui)
-        if not gui then return end
-        gui.DescendantAdded:Connect(function(obj)
-            if obj:IsA("TextLabel") then
-                task.wait(0.05)
-                local team = ParseTeamFromChat(obj.Text)
-                if team and not MyTeam then
-                    MyTeam = team
-                    print("[Zep Hub] My team:", MyTeam)
-                end
-            end
-        end)
-    end
-
-    local chat = playerGui:WaitForChild("Chat", 15)
-    if chat then hookGui(chat) end
-
-    local rbxChat = playerGui:FindFirstChild("RBXGeneral")
-    if rbxChat then hookGui(rbxChat) end
-
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            if not MyTeam then
-                for _, gui in pairs(playerGui:GetChildren()) do
-                    if gui:IsA("ScreenGui") then
-                        for _, obj in pairs(gui:GetDescendants()) do
-                            if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
-                                local team = ParseTeamFromChat(obj.Text)
-                                if team then
-                                    MyTeam = team
-                                    print("[Zep Hub] My team:", MyTeam)
-                                    break
-                                end
-                            end
-                        end
+    local function scanAll()
+        for _, gui in pairs(playerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") then
+                for _, obj in pairs(gui:GetDescendants()) do
+                    if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
+                        TrySetTeam(obj.Text)
+                        if MyTeam then return end
                     end
                 end
             end
+        end
+    end
+
+    task.spawn(function()
+        while not MyTeam do
+            task.wait(0.5)
+            scanAll()
         end
     end)
 end)
@@ -800,6 +794,10 @@ local function GetClosestTarget()
             local player = Players:GetPlayerFromCharacter(CurrentTarget)
             if not player or IsTeammate(player) then
                 stillValid = false
+            elseif Config.IgnoreWalls then
+                if not HasLineOfSight(CurrentTarget) then
+                    stillValid = false
+                end
             end
         end
 
@@ -838,7 +836,13 @@ local function GetClosestTarget()
                         local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
 
                         if screenDist <= FOV_SIZE then
-                            if HasLineOfSight(p.Character) then
+                            local canTarget = true
+
+                            if Config.IgnoreWalls then
+                                canTarget = HasLineOfSight(p.Character)
+                            end
+
+                            if canTarget then
                                 local worldDist = (targetHRP.Position - myPos).Magnitude
                                 if worldDist < bestDist then
                                     bestDist = worldDist
@@ -902,6 +906,11 @@ end)
 MakeToggle(PageMain, "Aim Hold (на ПКМ)", false, function(v)
     Config.AimHold = v
     UpdateFOVVisibility()
+end)
+
+MakeSection(PageMain, "Стены")
+MakeToggle(PageMain, "Игнорировать стены (аим через стены)", false, function(v)
+    Config.IgnoreWalls = v
 end)
 
 MakeSection(PageMain, "Статус")
