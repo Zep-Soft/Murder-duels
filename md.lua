@@ -30,8 +30,8 @@ local Theme = {
 
 local FOV_SIZE = 250
 local RENDER_PRIORITY = 3000
-local HOLD_MULT = 1.5
-local HOLD_TIME = 0.5
+local HOLD_MULT = 2.0
+local HOLD_TIME = 1.0
 
 local Config = {
     AimLock = false,
@@ -105,13 +105,11 @@ task.spawn(function()
                 if MyTeam ~= "A" then
                     MyTeam = "A"
                     CurrentTarget = nil
-                    print("[Zep Hub] Team (Player.Team):", MyTeam)
                 end
             elseif n == "B" or n:find("B") then
                 if MyTeam ~= "B" then
                     MyTeam = "B"
                     CurrentTarget = nil
-                    print("[Zep Hub] Team (Player.Team):", MyTeam)
                 end
             end
             MyTeamColor = plr.TeamColor
@@ -825,10 +823,8 @@ local function GetClosestTarget()
             local player = Players:GetPlayerFromCharacter(CurrentTarget)
             if not player or IsTeammate(player) then
                 stillValid = false
-            elseif Config.IgnoreWalls then
-                if not HasLineOfSight(CurrentTarget) then
-                    stillValid = false
-                end
+            elseif Config.IgnoreWalls and not HasLineOfSight(CurrentTarget) then
+                stillValid = false
             end
         end
 
@@ -867,14 +863,10 @@ local function GetClosestTarget()
                         local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
 
                         if screenDist <= FOV_SIZE then
-                            local canTarget = true
-                            if Config.IgnoreWalls then
-                                canTarget = HasLineOfSight(p.Character)
-                            end
+                            local worldDist = (targetHRP.Position - myPos).Magnitude
 
-                            if canTarget then
-                                local worldDist = (targetHRP.Position - myPos).Magnitude
-                                if worldDist < bestDist then
+                            if worldDist < bestDist then
+                                if (not Config.IgnoreWalls) or HasLineOfSight(p.Character) then
                                     bestDist = worldDist
                                     bestChar = p.Character
                                     bestPart = GetTargetPart(p.Character)
@@ -938,7 +930,6 @@ MakeToggle(PageMain, "Aim Hold (на ПКМ)", false, function(v)
     UpdateFOVVisibility()
 end)
 
-MakeSection(PageMain, "Стены")
 MakeToggle(PageMain, "Игнорировать стены (аим через стены)", false, function(v)
     Config.IgnoreWalls = v
 end)
