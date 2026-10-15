@@ -1,3 +1,4 @@
+local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -5,6 +6,82 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TextChatService = game:GetService("TextChatService")
 local plr = Players.LocalPlayer
+
+local MD_PLACE_ID = 120851538706364
+local SCRIPT_URL = "https://raw.githubusercontent.com/Zep-Soft/Murder-duels/refs/heads/main/md.lua"
+
+if game.PlaceId ~= MD_PLACE_ID then
+    pcall(function()
+        queue_on_teleport('loadstring(game:HttpGet("' .. SCRIPT_URL .. '"))()')
+    end)
+
+    local TpGui = Instance.new("ScreenGui")
+    TpGui.Name = "ZepTeleport"
+    TpGui.ResetOnSpawn = false
+    TpGui.Parent = CoreGui
+
+    local TpFrame = Instance.new("Frame")
+    TpFrame.Size = UDim2.new(0, 340, 0, 110)
+    TpFrame.Position = UDim2.new(0.5, -170, 0.5, -55)
+    TpFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
+    TpFrame.BorderSizePixel = 0
+    TpFrame.Parent = TpGui
+
+    local TpC = Instance.new("UICorner")
+    TpC.CornerRadius = UDim.new(0, 14)
+    TpC.Parent = TpFrame
+
+    local TpS = Instance.new("UIStroke")
+    TpS.Color = Color3.fromRGB(255, 50, 100)
+    TpS.Thickness = 1.5
+    TpS.Parent = TpFrame
+
+    local TpTitle = Instance.new("TextLabel")
+    TpTitle.Size = UDim2.new(1, -20, 0, 30)
+    TpTitle.Position = UDim2.new(0, 14, 0, 12)
+    TpTitle.BackgroundTransparency = 1
+    TpTitle.Text = "ZEP HUB"
+    TpTitle.TextColor3 = Color3.fromRGB(255, 50, 100)
+    TpTitle.Font = Enum.Font.GothamBlack
+    TpTitle.TextSize = 16
+    TpTitle.TextXAlignment = Enum.TextXAlignment.Left
+    TpTitle.Parent = TpFrame
+
+    local TpStatus = Instance.new("TextLabel")
+    TpStatus.Size = UDim2.new(1, -20, 0, 20)
+    TpStatus.Position = UDim2.new(0, 14, 0, 44)
+    TpStatus.BackgroundTransparency = 1
+    TpStatus.Text = "Телепорт в Murder Duels..."
+    TpStatus.TextColor3 = Color3.fromRGB(245, 245, 255)
+    TpStatus.Font = Enum.Font.Gotham
+    TpStatus.TextSize = 12
+    TpStatus.TextXAlignment = Enum.TextXAlignment.Left
+    TpStatus.Parent = TpFrame
+
+    local TpInfo = Instance.new("TextLabel")
+    TpInfo.Size = UDim2.new(1, -20, 0, 20)
+    TpInfo.Position = UDim2.new(0, 14, 0, 68)
+    TpInfo.BackgroundTransparency = 1
+    TpInfo.Text = "Скрипт загрузится автоматически"
+    TpInfo.TextColor3 = Color3.fromRGB(130, 130, 160)
+    TpInfo.Font = Enum.Font.Gotham
+    TpInfo.TextSize = 10
+    TpInfo.TextXAlignment = Enum.TextXAlignment.Left
+    TpInfo.Parent = TpFrame
+
+    task.wait(1.5)
+
+    local ok, err = pcall(function()
+        TeleportService:Teleport(MD_PLACE_ID)
+    end)
+
+    if not ok then
+        TpStatus.Text = "Ошибка: " .. tostring(err)
+        TpStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+
+    return
+end
 
 if _G.ZepHub_Loaded then
     local old = CoreGui:FindFirstChild("ZepHubUI")
