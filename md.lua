@@ -119,17 +119,15 @@ local Theme = {
     Green    = Color3.fromRGB(60, 220, 130),
 }
 
-local FOV_SIZE = 250
+local FOV_SIZE = 150
 local RENDER_PRIORITY = 3000
 local HOLD_MULT = 2.0
 local HOLD_TIME = 1.0
 
 local Config = {
     AimLock = false,
-    AimHold = false,
     HeadChance = 75,
     ESP = false,
-    AntiAFK = false,
     IgnoreWalls = false,
 }
 
@@ -138,6 +136,32 @@ local MyTeamColor = nil
 local CurrentTarget = nil
 local lastValidTime = 0
 local cachedTargetPlayer = nil
+
+local bodyGyro = nil
+
+local function SetupBodyRotation(hrp)
+    if bodyGyro and bodyGyro.Parent then
+        bodyGyro:Destroy()
+    end
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "ZepBodyGyro"
+    bodyGyro.MaxTorque = Vector3.new(0, 1e6, 0)
+    bodyGyro.P = 3000
+    bodyGyro.D = 500
+    bodyGyro.CFrame = hrp.CFrame
+    bodyGyro.Parent = hrp
+end
+
+plr.CharacterAdded:Connect(function(char)
+    task.wait(0.1)
+    local hrp = char:WaitForChild("HumanoidRootPart", 5)
+    if hrp then SetupBodyRotation(hrp) end
+end)
+
+if plr.Character then
+    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then SetupBodyRotation(hrp) end
+end
 
 local function TrySetTeam(text)
     if not text then return end
@@ -263,7 +287,7 @@ FOVGradient.Parent = FOVStroke
 
 task.spawn(function()
     while FOVCircle and FOVCircle.Parent do
-        task.wait(0.05)
+        task.wait(0.1)
         FOVGradient.Rotation = (FOVGradient.Rotation + 5) % 360
     end
 end)
@@ -282,9 +306,8 @@ FOVDotC.CornerRadius = UDim.new(1, 0)
 FOVDotC.Parent = FOVDot
 
 local function UpdateFOVVisibility()
-    local visible = (Config.AimLock or Config.AimHold)
-    FOVCircle.Visible = visible
-    FOVDot.Visible = visible
+    FOVCircle.Visible = Config.AimLock
+    FOVDot.Visible = Config.AimLock
 end
 
 local Main = Instance.new("Frame")
@@ -981,29 +1004,31 @@ local function GetClosestTarget()
     return nil, nil
 end
 
-local aimHeld = false
-UIS.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then aimHeld = true end
-end)
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then aimHeld = false end
-end)
-
 RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
-    if Config.AimLock or (Config.AimHold and aimHeld) then
+    local myChar = plr.Character
+    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local cam = workspace.CurrentCamera
+
+    if Config.AimLock then
         local char, part = GetClosestTarget()
-        if char and part then
-            local cam = workspace.CurrentCamera
-            cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
-            local myChar = plr.Character
-            local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if char and part and cam then
+            local aimCF = CFrame.new(cam.CFrame.Position, part.Position)
+            cam.CFrame = aimCF
+
             if hum then
                 hum.AutoRotate = false
             end
+
+            if bodyGyro and bodyGyro.Parent and hrp then
+                local look = aimCF.LookVector
+                local flatLook = Vector3.new(look.X, 0, look.Z)
+                if flatLook.Magnitude > 0.001 then
+                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flatLook.Unit)
+                end
+            end
         end
     else
-        local myChar = plr.Character
-        local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
         if hum and not hum.AutoRotate then
             hum.AutoRotate = true
         end
@@ -1011,12 +1036,8 @@ RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
 end)
 
 MakeSection(PageMain, "Aim Assist")
-MakeToggle(PageMain, "Aim Lock (всегда)", false, function(v)
+MakeToggle(PageMain, "Aim Lock", false, function(v)
     Config.AimLock = v
-    UpdateFOVVisibility()
-end)
-MakeToggle(PageMain, "Aim Hold (на ПКМ)", false, function(v)
-    Config.AimHold = v
     UpdateFOVVisibility()
 end)
 MakeToggle(PageMain, "Игнорировать стены", false, function(v)
@@ -1147,7 +1168,7 @@ local function OpenUI()
     Main.Size = UDim2.new(0.4, 0, 0.5, 0)
     Main.Position = UDim2.new(0.3, 0, 0.25, 0)
     Main.BackgroundTransparency = 1
-    local t = TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+    local t = TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
         Size = baseSize,
         Position = basePos,
         BackgroundTransparency = 0,
@@ -1162,7 +1183,7 @@ end
 local function CloseUI()
     if not uiOpen or uiAnimating then return end
     uiAnimating = true
-    local t = TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+    local t = TweenService:Create(Main, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
         Size = UDim2.new(0.4, 0, 0.5, 0),
         Position = UDim2.new(0.3, 0, 0.25, 0),
         BackgroundTransparency = 1,
@@ -1179,7 +1200,6 @@ end
 
 local function UnloadAll()
     Config.AimLock = false
-    Config.AimHold = false
     Config.ESP = false
     pcall(function()
         RunService:UnbindFromRenderStep("ZepAimStep")
@@ -1188,6 +1208,10 @@ local function UnloadAll()
     if marker then
         pcall(function() marker:Destroy() end)
         marker = nil
+    end
+    if bodyGyro and bodyGyro.Parent then
+        pcall(function() bodyGyro:Destroy() end)
+        bodyGyro = nil
     end
     local myChar = plr.Character
     local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
