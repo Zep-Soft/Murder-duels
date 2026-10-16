@@ -258,11 +258,40 @@ local MC = Instance.new("UICorner")
 MC.CornerRadius = UDim.new(0, 18)
 MC.Parent = Main
 
+local MainGrad = Instance.new("UIGradient")
+MainGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(22, 18, 34)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(14, 14, 22)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 14, 30)),
+})
+MainGrad.Rotation = 135
+MainGrad.Parent = Main
+
 local MS = Instance.new("UIStroke")
 MS.Color = Color3.fromRGB(55, 55, 80)
 MS.Thickness = 1.5
 MS.Transparency = 0.2
 MS.Parent = Main
+
+local Glow = Instance.new("ImageLabel")
+Glow.Size = UDim2.new(1, 200, 1, 200)
+Glow.Position = UDim2.new(0, -100, 0, -100)
+Glow.BackgroundTransparency = 1
+Glow.Image = "rbxassetid://5028857472"
+Glow.ImageColor3 = Theme.Accent2
+Glow.ImageTransparency = 0.85
+Glow.ZIndex = 0
+Glow.Parent = Main
+
+local Glow2 = Instance.new("ImageLabel")
+Glow2.Size = UDim2.new(1, 100, 1, 100)
+Glow2.Position = UDim2.new(0, -50, 0, -50)
+Glow2.BackgroundTransparency = 1
+Glow2.Image = "rbxassetid://5028857472"
+Glow2.ImageColor3 = Theme.Accent
+Glow2.ImageTransparency = 0.9
+Glow2.ZIndex = 0
+Glow2.Parent = Main
 
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0.13, 0)
@@ -274,6 +303,64 @@ TopBar.Parent = Main
 local TBC = Instance.new("UICorner")
 TBC.CornerRadius = UDim.new(0, 18)
 TBC.Parent = TopBar
+
+local TBFix = Instance.new("Frame")
+TBFix.Size = UDim2.new(1, 0, 0.35, 0)
+TBFix.Position = UDim2.new(0, 0, 0.65, 0)
+TBFix.BackgroundColor3 = Theme.Surface
+TBFix.BorderSizePixel = 0
+TBFix.ZIndex = 2
+TBFix.Parent = TopBar
+
+local TBG = Instance.new("UIGradient")
+TBG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 46)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 16, 24)),
+})
+TBG.Rotation = 90
+TBG.Parent = TopBar
+
+local Logo = Instance.new("Frame")
+Logo.Size = UDim2.new(0.06, 0, 0.6, 0)
+Logo.Position = UDim2.new(0.03, 0, 0.2, 0)
+Logo.BackgroundColor3 = Theme.Accent
+Logo.BorderSizePixel = 0
+Logo.ZIndex = 3
+Logo.Parent = TopBar
+
+local LC = Instance.new("UICorner")
+LC.CornerRadius = UDim.new(0, 11)
+LC.Parent = Logo
+
+local LG = Instance.new("UIGradient")
+LG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent),
+    ColorSequenceKeypoint.new(0.5, Theme.Accent2),
+    ColorSequenceKeypoint.new(1, Theme.Accent3),
+})
+LG.Rotation = 45
+LG.Parent = Logo
+
+local LogoDot = Instance.new("Frame")
+LogoDot.Size = UDim2.new(0.35, 0, 0.35, 0)
+LogoDot.Position = UDim2.new(0.325, 0, 0.325, 0)
+LogoDot.BackgroundColor3 = Theme.Bg
+LogoDot.BorderSizePixel = 0
+LogoDot.ZIndex = 4
+LogoDot.Parent = Logo
+
+local LDC = Instance.new("UICorner")
+LDC.CornerRadius = UDim.new(0, 5)
+LDC.Parent = LogoDot
+
+task.spawn(function()
+    while LogoDot and LogoDot.Parent do
+        task.wait(0.6)
+        TweenService:Create(LogoDot, TweenInfo.new(0.3), {BackgroundColor3 = Theme.Accent}):Play()
+        task.wait(0.3)
+        TweenService:Create(LogoDot, TweenInfo.new(0.3), {BackgroundColor3 = Theme.Bg}):Play()
+    end
+end)
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(0.5, 0, 0.6, 0)
@@ -367,12 +454,29 @@ Sidebar.BorderSizePixel = 0
 Sidebar.ZIndex = 2
 Sidebar.Parent = Main
 
+local SideGrad = Instance.new("UIGradient")
+SideGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(26, 26, 40)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 14, 22)),
+})
+SideGrad.Rotation = 90
+SideGrad.Parent = Sidebar
+
 local SideLine = Instance.new("Frame")
 SideLine.Size = UDim2.new(0.01, 0, 1, 0)
 SideLine.Position = UDim2.new(0.99, 0, 0, 0)
 SideLine.BackgroundColor3 = Theme.Stroke
 SideLine.BorderSizePixel = 0
 SideLine.Parent = Sidebar
+
+local SideLineG = Instance.new("UIGradient")
+SideLineG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent),
+    ColorSequenceKeypoint.new(0.5, Theme.Accent2),
+    ColorSequenceKeypoint.new(1, Theme.Accent3),
+})
+SideLineG.Rotation = 90
+SideLineG.Parent = SideLine
 
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(0.72, 0, 0.87, 0)
@@ -438,6 +542,19 @@ local function MakeTab(name, subtitle, pageName)
     BC.CornerRadius = UDim.new(0, 11)
     BC.Parent = Btn
 
+    local Ind = Instance.new("Frame")
+    Ind.Size = UDim2.new(0, 3, 0.5, 0)
+    Ind.Position = UDim2.new(0, 0, 0.25, 0)
+    Ind.BackgroundColor3 = Theme.Accent
+    Ind.BorderSizePixel = 0
+    Ind.BackgroundTransparency = 1
+    Ind.ZIndex = 7
+    Ind.Parent = Btn
+
+    local IndC = Instance.new("UICorner")
+    IndC.CornerRadius = UDim.new(1, 0)
+    IndC.Parent = Ind
+
     local Lbl = Instance.new("TextLabel")
     Lbl.Size = UDim2.new(1, -20, 0, 22)
     Lbl.Position = UDim2.new(0, 18, 0, 5)
@@ -470,6 +587,7 @@ local function MakeTab(name, subtitle, pageName)
             }):Play()
             TweenService:Create(Lbl, TweenInfo.new(0.25), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
             TweenService:Create(Sub, TweenInfo.new(0.25), {TextColor3 = Color3.fromRGB(255, 220, 230)}):Play()
+            TweenService:Create(Ind, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play()
         else
             TweenService:Create(Btn, TweenInfo.new(0.25), {
                 BackgroundTransparency = 1,
@@ -477,6 +595,7 @@ local function MakeTab(name, subtitle, pageName)
             }):Play()
             TweenService:Create(Lbl, TweenInfo.new(0.25), {TextColor3 = Theme.Text}):Play()
             TweenService:Create(Sub, TweenInfo.new(0.25), {TextColor3 = Theme.TextDim}):Play()
+            TweenService:Create(Ind, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
         end
     end
 
@@ -510,6 +629,10 @@ local function MakeSection(parent, text)
     S.TextXAlignment = Enum.TextXAlignment.Left
     S.ZIndex = 6
     S.Parent = parent
+
+    local Pad = Instance.new("UIPadding")
+    Pad.PaddingLeft = UDim.new(0, 4)
+    Pad.Parent = S
 end
 
 local function MakeToggle(parent, text, default, callback)
@@ -524,6 +647,20 @@ local function MakeToggle(parent, text, default, callback)
     CC.CornerRadius = UDim.new(0, 12)
     CC.Parent = C
 
+    local CG = Instance.new("UIGradient")
+    CG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+    })
+    CG.Rotation = 45
+    CG.Parent = C
+
+    local CS = Instance.new("UIStroke")
+    CS.Color = Theme.Stroke
+    CS.Thickness = 1
+    CS.Transparency = 0.4
+    CS.Parent = C
+
     local Lbl = Instance.new("TextLabel")
     Lbl.Size = UDim2.new(1, -90, 1, 0)
     Lbl.Position = UDim2.new(0, 18, 0, 0)
@@ -533,6 +670,8 @@ local function MakeToggle(parent, text, default, callback)
     Lbl.Font = Enum.Font.GothamMedium
     Lbl.TextSize = 13
     Lbl.TextXAlignment = Enum.TextXAlignment.Left
+    Lbl.TextStrokeTransparency = 0.5
+    Lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     Lbl.ZIndex = 7
     Lbl.Parent = C
 
@@ -579,6 +718,14 @@ local function MakeToggle(parent, text, default, callback)
         }):Play()
         if callback then callback(state) end
     end)
+
+    C.MouseEnter:Connect(function()
+        TweenService:Create(C, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Hover}):Play()
+    end)
+
+    C.MouseLeave:Connect(function()
+        TweenService:Create(C, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Surface2}):Play()
+    end)
 end
 
 local function MakeButton(parent, text, color, callback)
@@ -591,12 +738,34 @@ local function MakeButton(parent, text, color, callback)
     Btn.TextSize = 13
     Btn.BorderSizePixel = 0
     Btn.AutoButtonColor = false
+    Btn.TextStrokeTransparency = 0.4
+    Btn.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     Btn.ZIndex = 6
     Btn.Parent = parent
 
     local BC = Instance.new("UICorner")
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
+
+    local BG = Instance.new("UIGradient")
+    BG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color or Theme.Accent),
+        ColorSequenceKeypoint.new(1, Theme.Accent2),
+    })
+    BG.Rotation = 45
+    BG.Parent = Btn
+
+    Btn.MouseEnter:Connect(function()
+        TweenService:Create(Btn, TweenInfo.new(0.15), {
+            Size = UDim2.new(1, 6, 0, 46),
+        }):Play()
+    end)
+
+    Btn.MouseLeave:Connect(function()
+        TweenService:Create(Btn, TweenInfo.new(0.15), {
+            Size = UDim2.new(1, 0, 0, 44),
+        }):Play()
+    end)
 
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
@@ -921,23 +1090,9 @@ end)
 FloatBtn.MouseButton1Click:Connect(function()
     if movedF then return end
     if Main.Visible then
-        local t = TweenService:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-            Size = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-        })
-        t:Play()
-        t.Completed:Connect(function()
-            Main.Visible = false
-        end)
+        Main.Visible = false
     else
-        Main.Size = UDim2.new(0, 0, 0, 0)
-        Main.Position = UDim2.new(0.5, 0, 0.5, 0)
         Main.Visible = true
-        task.wait(0.02)
-        TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0.45, 0, 0.6, 0),
-            Position = UDim2.new(0.275, 0, 0.2, 0),
-        }):Play()
     end
 end)
 
