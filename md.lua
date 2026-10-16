@@ -418,8 +418,8 @@ Version.ZIndex = 3
 Version.Parent = TopBar
 
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0.06, 0, 0.55, 0)
-MinBtn.Position = UDim2.new(0.86, 0, 0.225, 0)
+MinBtn.Size = UDim2.new(0.08, 0, 0.7, 0)
+MinBtn.Position = UDim2.new(0.84, 0, 0.15, 0)
 MinBtn.BackgroundColor3 = Theme.Surface2
 MinBtn.Text = "−"
 MinBtn.TextColor3 = Theme.TextDim
@@ -434,6 +434,10 @@ local MinC = Instance.new("UICorner")
 MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
+local MinAspect = Instance.new("UIAspectRatioConstraint")
+MinAspect.AspectRatio = 1
+MinAspect.Parent = MinBtn
+
 local MinG = Instance.new("UIGradient")
 MinG.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Theme.Surface2),
@@ -443,8 +447,8 @@ MinG.Rotation = 45
 MinG.Parent = MinBtn
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0.06, 0, 0.55, 0)
-CloseBtn.Position = UDim2.new(0.93, 0, 0.225, 0)
+CloseBtn.Size = UDim2.new(0.08, 0, 0.7, 0)
+CloseBtn.Position = UDim2.new(0.93, 0, 0.15, 0)
 CloseBtn.BackgroundColor3 = Theme.Surface2
 CloseBtn.Text = "×"
 CloseBtn.TextColor3 = Theme.TextDim
@@ -458,6 +462,10 @@ CloseBtn.Parent = TopBar
 local CloseC = Instance.new("UICorner")
 CloseC.CornerRadius = UDim.new(0, 9)
 CloseC.Parent = CloseBtn
+
+local CloseAspect = Instance.new("UIAspectRatioConstraint")
+CloseAspect.AspectRatio = 1
+CloseAspect.Parent = CloseBtn
 
 local CloseG = Instance.new("UIGradient")
 CloseG.Color = ColorSequence.new({
@@ -994,6 +1002,10 @@ TeamLabel.Font = Enum.Font.GothamMedium
 TeamLabel.TextSize = 12
 TeamLabel.ZIndex = 6
 TeamLabel.Parent = PageMain
+
+local TLC = Instance.new("UICorner")
+TLC.CornerRadius = UDim.new(0, 10)
+TLC.Parent = TeamLabel
 
 local TeamGrad = Instance.new("UIGradient")
 TeamGrad.Color = ColorSequence.new({
