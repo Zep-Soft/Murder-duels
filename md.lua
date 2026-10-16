@@ -291,7 +291,7 @@ local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0.5, 0, 0.65, 0)
 Main.Position = UDim2.new(0.25, 0, 0.175, 0)
 Main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
-Main.BackgroundTransparency = 1
+Main.BackgroundTransparency = 0
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
 Main.Visible = true
@@ -548,15 +548,15 @@ local function MakePage(name)
     P.Parent = Content
 
     local Pad = Instance.new("UIPadding")
-    Pad.PaddingTop = UDim.new(0, 10)
-    Pad.PaddingBottom = UDim.new(0, 10)
-    Pad.PaddingLeft = UDim.new(0, 10)
-    Pad.PaddingRight = UDim.new(0, 10)
+    Pad.PaddingTop = UDim.new(0, 12)
+    Pad.PaddingBottom = UDim.new(0, 12)
+    Pad.PaddingLeft = UDim.new(0, 12)
+    Pad.PaddingRight = UDim.new(0, 12)
     Pad.Parent = P
 
     local Layout = Instance.new("UIListLayout")
     Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 8)
+    Layout.Padding = UDim.new(0, 10)
     Layout.Parent = P
 
     Pages[name] = P
@@ -812,6 +812,29 @@ local function MakeButton(parent, text, color, callback)
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
 
+    local BG = Instance.new("UIGradient")
+    BG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color or Theme.Accent),
+        ColorSequenceKeypoint.new(1, Theme.Accent2),
+    })
+    BG.Rotation = 45
+    BG.Parent = Btn
+
+    local BtnStroke = Instance.new("UIStroke")
+    BtnStroke.Color = Color3.fromRGB(255, 255, 255)
+    BtnStroke.Thickness = 1
+    BtnStroke.Transparency = 0.85
+    BtnStroke.Parent = Btn
+
+    local origColor = color or Theme.Accent
+
+    Btn.MouseEnter:Connect(function()
+        TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Transparency = 0.5}):Play()
+    end)
+    Btn.MouseLeave:Connect(function()
+        TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Transparency = 0.85}):Play()
+    end)
+
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
     end)
@@ -992,7 +1015,7 @@ end)
 
 MakeSection(PageMain, "Статус")
 local TeamLabel = Instance.new("TextLabel")
-TeamLabel.Size = UDim2.new(1, 0, 0, 30)
+TeamLabel.Size = UDim2.new(1, 0, 0, 34)
 TeamLabel.BackgroundColor3 = Theme.Surface2
 TeamLabel.Text = "Команда: определяется..."
 TeamLabel.TextColor3 = Theme.Text
@@ -1012,6 +1035,12 @@ TeamGrad.Color = ColorSequence.new({
 })
 TeamGrad.Rotation = 45
 TeamGrad.Parent = TeamLabel
+
+local TLStroke = Instance.new("UIStroke")
+TLStroke.Color = Theme.Stroke
+TLStroke.Thickness = 1
+TLStroke.Transparency = 0.4
+TLStroke.Parent = TeamLabel
 
 task.spawn(function()
     local lastTeam = nil
