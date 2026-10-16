@@ -434,10 +434,6 @@ local MinC = Instance.new("UICorner")
 MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
-local MinAspect = Instance.new("UIAspectRatioConstraint")
-MinAspect.AspectRatio = 1
-MinAspect.Parent = MinBtn
-
 local MinG = Instance.new("UIGradient")
 MinG.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Theme.Surface2),
@@ -462,10 +458,6 @@ CloseBtn.Parent = TopBar
 local CloseC = Instance.new("UICorner")
 CloseC.CornerRadius = UDim.new(0, 9)
 CloseC.Parent = CloseBtn
-
-local CloseAspect = Instance.new("UIAspectRatioConstraint")
-CloseAspect.AspectRatio = 1
-CloseAspect.Parent = CloseBtn
 
 local CloseG = Instance.new("UIGradient")
 CloseG.Color = ColorSequence.new({
