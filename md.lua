@@ -37,7 +37,7 @@ if game.PlaceId ~= MD_PLACE_ID then
     info.Size = UDim2.new(1, -40, 0, 80)
     info.Position = UDim2.new(0, 20, 0.5, 0)
     info.BackgroundTransparency = 1
-    info.Text = "Этот Zep Hub работает только в Murder Duels.\nЗайди в MD и запусти скрипт снова."
+    info.Text = "Zep Hub работает только в Murder Duels.\nЗайди в MD и запусти скрипт снова."
     info.TextColor3 = Color3.fromRGB(245, 245, 255)
     info.Font = Enum.Font.Gotham
     info.TextSize = 14
@@ -85,7 +85,6 @@ local Config = {
     AimHold = false,
     HeadChance = 75,
     ESP = false,
-    HeadDot = false,
     AntiAFK = false,
     IgnoreWalls = false,
 }
@@ -844,7 +843,8 @@ local function HasLineOfSight(targetChar)
         if result.Instance:IsDescendantOf(targetChar) then
             return true
         end
-        return false    end
+        return false
+    end
     return true
 end
 
@@ -1030,10 +1030,6 @@ MakeToggle(PageVisuals, "ESP игроков (без тиммейтов)", false,
     Config.ESP = v
 end)
 
-MakeToggle(PageVisuals, "Head Dot (точка на голове)", false, function(v)
-    Config.HeadDot = v
-end)
-
 local espObjects = {}
 
 local function ClearESP()
@@ -1044,44 +1040,22 @@ local function ClearESP()
 end
 
 RunService.Heartbeat:Connect(function()
-    if Config.ESP or Config.HeadDot then
+    if Config.ESP then
         ClearESP()
 
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= plr and p.Character and not IsTeammate(p) then
                 local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                local head = p.Character:FindFirstChild("Head")
 
-                if hum and hum.Health > 0 and head then
-                    if Config.ESP then
-                        local hl = Instance.new("Highlight")
-                        hl.FillColor = Color3.fromRGB(255, 0, 0)
-                        hl.OutlineColor = Color3.fromRGB(255, 0, 0)
-                        hl.FillTransparency = 0.4
-                        hl.OutlineTransparency = 0
-                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        hl.Parent = p.Character
-                        table.insert(espObjects, hl)
-                    end
-
-                    if Config.HeadDot then
-                        local dot = Instance.new("BillboardGui")
-                        dot.Size = UDim2.new(0, 10, 0, 10)
-                        dot.AlwaysOnTop = true
-                        dot.Parent = head
-
-                        local circle = Instance.new("Frame")
-                        circle.Size = UDim2.new(1, 0, 1, 0)
-                        circle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                        circle.BorderSizePixel = 0
-                        circle.Parent = dot
-
-                        local cc = Instance.new("UICorner")
-                        cc.CornerRadius = UDim.new(1, 0)
-                        cc.Parent = circle
-
-                        table.insert(espObjects, dot)
-                    end
+                if hum and hum.Health > 0 then
+                    local hl = Instance.new("Highlight")
+                    hl.FillColor = Color3.fromRGB(255, 0, 0)
+                    hl.OutlineColor = Color3.fromRGB(255, 0, 0)
+                    hl.FillTransparency = 0.4
+                    hl.OutlineTransparency = 0
+                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    hl.Parent = p.Character
+                    table.insert(espObjects, hl)
                 end
             end
         end
