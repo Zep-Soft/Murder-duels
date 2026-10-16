@@ -59,6 +59,56 @@ if _G.ZepHub_Loaded then
 end
 _G.ZepHub_Loaded = true
 
+local Theme = {
+    Bg       = Color3.fromRGB(10, 10, 16),
+    Surface  = Color3.fromRGB(18, 18, 28),
+    Surface2 = Color3.fromRGB(24, 24, 36),
+    Hover    = Color3.fromRGB(34, 34, 50),
+    Accent   = Color3.fromRGB(255, 50, 100),
+    Accent2  = Color3.fromRGB(130, 70, 255),
+    Accent3  = Color3.fromRGB(50, 200, 255),
+    Text     = Color3.fromRGB(245, 245, 255),
+    TextDim  = Color3.fromRGB(130, 130, 160),
+    Stroke   = Color3.fromRGB(45, 45, 65),
+    On       = Color3.fromRGB(255, 50, 100),
+    Off      = Color3.fromRGB(42, 42, 58),
+    Green    = Color3.fromRGB(60, 220, 130),
+    Gold     = Color3.fromRGB(255, 200, 60),
+    Purple   = Color3.fromRGB(180, 100, 255),
+    Blue     = Color3.fromRGB(90, 180, 255),
+}
+
+local FOV_SIZE = 150
+local RENDER_PRIORITY = 3000
+local HOLD_MULT = 1.0
+local HOLD_TIME = 0.15
+
+local Config = {
+    AimLock = false,
+    HeadChance = 75,
+    ESP = false,
+    IgnoreWalls = false,
+}
+
+local MyTeam = nil
+local MyTeamColor = nil
+local CurrentTarget = nil
+local lastValidTime = 0
+local cachedTargetPlayer = nil
+
+local bodyGyro = nil
+local lastHopTime = 0
+local HOP_COOLDOWN = 5
+
+local matchData = {
+    playersA = {},
+    playersB = {},
+    updatedAt = 0,
+}
+
+local statsOpen = false
+local statsOverlay = nil
+
 local marker = Instance.new("Part")
 marker.Name = "ZepHubMarker"
 marker.Size = Vector3.new(0.1, 0.1, 0.1)
@@ -104,44 +154,6 @@ task.spawn(function()
         end)
     end
 end)
-
-local Theme = {
-    Bg       = Color3.fromRGB(10, 10, 16),
-    Surface  = Color3.fromRGB(18, 18, 28),
-    Surface2 = Color3.fromRGB(24, 24, 36),
-    Hover    = Color3.fromRGB(34, 34, 50),
-    Accent   = Color3.fromRGB(255, 50, 100),
-    Accent2  = Color3.fromRGB(130, 70, 255),
-    Accent3  = Color3.fromRGB(50, 200, 255),
-    Text     = Color3.fromRGB(245, 245, 255),
-    TextDim  = Color3.fromRGB(130, 130, 160),
-    Stroke   = Color3.fromRGB(45, 45, 65),
-    On       = Color3.fromRGB(255, 50, 100),
-    Off      = Color3.fromRGB(42, 42, 58),
-    Green    = Color3.fromRGB(60, 220, 130),
-}
-
-local FOV_SIZE = 150
-local RENDER_PRIORITY = 3000
-local HOLD_MULT = 1.0
-local HOLD_TIME = 0.15
-
-local Config = {
-    AimLock = false,
-    HeadChance = 75,
-    ESP = false,
-    IgnoreWalls = false,
-}
-
-local MyTeam = nil
-local MyTeamColor = nil
-local CurrentTarget = nil
-local lastValidTime = 0
-local cachedTargetPlayer = nil
-
-local bodyGyro = nil
-local lastHopTime = 0
-local HOP_COOLDOWN = 5
 
 local function SetupBodyRotation(hrp)
     if bodyGyro and bodyGyro.Parent then
@@ -250,12 +262,81 @@ local function IsTeammate(p)
     return false
 end
 
+task.spawn(function()
+    local pg = plr:WaitForChild("PlayerGui", 15)
+    if not pg then return end
+    while true do
+        task.wait(1)
+        pcall(function()
+            local tb = pg:FindFirstChild("TopbarStandard")
+            if tb then
+                local holders = tb:FindFirstChild("Holders")
+                if holders then
+                    local right = holders:FindFirstChild("Right")
+                    if right then
+                        local plist = right:FindFirstChild("PlayerList")
+                        if plist and plist:IsA("GuiObject") then
+                            plist.Visible = false
+                        end
+                    end
+                end
+            end
+            local hud = pg:FindFirstChild("HUD")
+            if hud then
+                for _, d in ipairs(hud:GetDescendants()) do
+                    if d.Name == "MatchLeaderboard" and d:IsA("GuiObject") then
+                        d.Visible = false
+                    end
+                end
+            end
+        end)
+    end
+end)
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ZepHubUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = CoreGui
+
+local StatsBtn = Instance.new("TextButton")
+StatsBtn.Size = UDim2.new(0, 40, 0, 40)
+StatsBtn.Position = UDim2.new(1, -60, 0, 10)
+StatsBtn.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
+StatsBtn.Text = ""
+StatsBtn.BorderSizePixel = 0
+StatsBtn.AutoButtonColor = false
+StatsBtn.ZIndex = 40
+StatsBtn.Parent = ScreenGui
+
+local SB_Corner = Instance.new("UICorner")
+SB_Corner.CornerRadius = UDim.new(1, 0)
+SB_Corner.Parent = StatsBtn
+
+local SB_Stroke = Instance.new("UIStroke")
+SB_Stroke.Color = Theme.Accent
+SB_Stroke.Thickness = 2
+SB_Stroke.Transparency = 0
+SB_Stroke.Parent = StatsBtn
+
+local SB_Grad = Instance.new("UIGradient")
+SB_Grad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent),
+    ColorSequenceKeypoint.new(1, Theme.Accent2),
+})
+SB_Grad.Rotation = 45
+SB_Grad.Parent = SB_Stroke
+
+local SB_Icon = Instance.new("TextLabel")
+SB_Icon.Size = UDim2.new(1, 0, 1, 0)
+SB_Icon.BackgroundTransparency = 1
+SB_Icon.Text = "≡"
+SB_Icon.TextColor3 = Color3.fromRGB(255, 255, 255)
+SB_Icon.Font = Enum.Font.GothamBold
+SB_Icon.TextSize = 22
+SB_Icon.ZIndex = 41
+SB_Icon.Parent = StatsBtn
 
 local FOVCircle = Instance.new("Frame")
 FOVCircle.Size = UDim2.new(0, FOV_SIZE * 2, 0, FOV_SIZE * 2)
@@ -313,6 +394,521 @@ local function UpdateFOVVisibility()
     FOVCircle.Visible = Config.AimLock
     FOVDot.Visible = Config.AimLock
 end
+
+local function fmtStreak(n)
+    if not n or n == 0 then return "0" end
+    return tostring(n)
+end
+
+local function streakColor(n)
+    n = tonumber(n) or 0
+    if n >= 100 then return Color3.fromRGB(255, 200, 60) end
+    if n >= 50 then return Color3.fromRGB(180, 100, 255) end
+    if n >= 10 then return Color3.fromRGB(90, 180, 255) end
+    return Color3.fromRGB(150, 150, 170)
+end
+
+local function parseStatsFromGui()
+    local pg = plr:FindFirstChildOfClass("PlayerGui")
+    if not pg then return end
+    local hud = pg:FindFirstChild("HUD")
+    if not hud then return end
+    local leaderboard = nil
+    for _, d in ipairs(hud:GetDescendants()) do
+        if d.Name == "PlayerContainer" and d:IsA("ScrollingFrame") then
+            leaderboard = d
+            break
+        end
+    end
+    if not leaderboard then return end
+
+    local newA = {}
+    local newB = {}
+
+    for _, row in ipairs(leaderboard:GetChildren()) do
+        if row:IsA("TextButton") and row.Name:match("^UserFrame_%d+$") then
+            local userId = tonumber(row.Name:match("^UserFrame_(%d+)$"))
+            if userId then
+                local player = Players:GetPlayerByUserId(userId)
+                if player then
+                    local identifier = ""
+                    local kd = ""
+                    local info = row:FindFirstChild("Info")
+                    if info then
+                        local idLabel = info:FindFirstChild("Identifier")
+                        if idLabel and idLabel:IsA("TextLabel") then
+                            identifier = idLabel.Text
+                        end
+                        local stats = info:FindFirstChild("Stats")
+                        if stats then
+                            local kdLabel = stats:FindFirstChild("KD")
+                            if kdLabel and kdLabel:IsA("TextLabel") then
+                                kd = kdLabel.Text
+                            end
+                        end
+                    end
+
+                    if identifier == "" then
+                        identifier = player.DisplayName or player.Name
+                    end
+
+                    local entry = {
+                        userId = userId,
+                        name = identifier,
+                        username = player.Name,
+                        kd = kd,
+                        side = "?",
+                    }
+
+                    local cached = nil
+                    for _, e in ipairs(matchData.playersA) do
+                        if e.userId == userId then cached = e; break end
+                    end
+                    if not cached then
+                        for _, e in ipairs(matchData.playersB) do
+                            if e.userId == userId then cached = e; break end
+                        end
+                    end
+                    if cached then
+                        entry.streak = cached.streak
+                        entry.level = cached.level
+                        entry.side = cached.side
+                    end
+
+                    local team = player.Team
+                    local teamName = team and team.Name or ""
+                    if teamName == "A" or teamName:find("A") then
+                        entry.side = "A"
+                        table.insert(newA, entry)
+                    elseif teamName == "B" or teamName:find("B") then
+                        entry.side = "B"
+                        table.insert(newB, entry)
+                    else
+                        if MyTeam == "A" then
+                            entry.side = "A"
+                            table.insert(newA, entry)
+                        elseif MyTeam == "B" then
+                            entry.side = "B"
+                            table.insert(newB, entry)
+                        else
+                            entry.side = "A"
+                            table.insert(newA, entry)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    matchData.playersA = newA
+    matchData.playersB = newB
+    matchData.updatedAt = tick()
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        pcall(parseStatsFromGui)
+    end
+end)
+
+task.spawn(function()
+    for _, obj in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+        if obj:IsA("RemoteEvent") and obj.Name == "MatchRemotesState" or obj.Name == "State" then
+        end
+    end
+end)
+
+task.spawn(function()
+    local rs = game:GetService("ReplicatedStorage")
+    local matchRemotes = rs:FindFirstChild("MatchRemotes")
+    if not matchRemotes then return end
+    local state = matchRemotes:FindFirstChild("State")
+    if not state or not state:IsA("RemoteEvent") then return end
+
+    state.OnClientEvent:Connect(function(_, payload)
+        if type(payload) ~= "table" then return end
+        if payload.t == "MatchEnded" then
+            local function store(list, side)
+                if type(list) ~= "table" then return end
+                for _, p in pairs(list) do
+                    if type(p) == "table" and p.UserId then
+                        local cached = nil
+                        for _, e in ipairs(matchData.playersA) do
+                            if e.userId == p.UserId then cached = e; break end
+                        end
+                        if not cached then
+                            for _, e in ipairs(matchData.playersB) do
+                                if e.userId == p.UserId then cached = e; break end
+                            end
+                        end
+
+                        local entry = {
+                            userId = p.UserId,
+                            name = p.DisplayName or p.Name or "?",
+                            username = p.Name or "?",
+                            streak = p.WinStreak or 0,
+                            level = p.Level or 0,
+                            kd = cached and cached.kd or "",
+                            side = side,
+                        }
+
+                        local found = false
+                        for i, e in ipairs(matchData.playersA) do
+                            if e.userId == entry.userId then
+                                matchData.playersA[i] = entry
+                                found = true
+                                break
+                            end
+                        end
+                        if not found then
+                            for i, e in ipairs(matchData.playersB) do
+                                if e.userId == entry.userId then
+                                    matchData.playersB[i] = entry
+                                    found = true
+                                    break
+                                end
+                            end
+                        end
+                        if not found then
+                            if side == "A" then
+                                table.insert(matchData.playersA, entry)
+                            else
+                                table.insert(matchData.playersB, entry)
+                            end
+                        end
+                    end
+                end
+            end
+            store(payload.playersA, "A")
+            store(payload.playersB, "B")
+            matchData.updatedAt = tick()
+        end
+    end)
+end)
+
+local function buildStatsOverlay()
+    local overlay = Instance.new("Frame")
+    overlay.Name = "ZepStatsOverlay"
+    overlay.Size = UDim2.new(0.7, 0, 0.7, 0)
+    overlay.Position = UDim2.new(0.15, 0, 0.15, 0)
+    overlay.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+    overlay.BackgroundTransparency = 0.05
+    overlay.BorderSizePixel = 0
+    overlay.ZIndex = 30
+    overlay.Visible = false
+    overlay.Parent = ScreenGui
+
+    local OC = Instance.new("UICorner")
+    OC.CornerRadius = UDim.new(0, 16)
+    OC.Parent = overlay
+
+    local OS = Instance.new("UIStroke")
+    OS.Color = Theme.Accent
+    OS.Thickness = 1.5
+    OS.Transparency = 0.2
+    OS.Parent = overlay
+
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 40)
+    header.BackgroundColor3 = Theme.Surface
+    header.BackgroundTransparency = 0
+    header.BorderSizePixel = 0
+    header.ZIndex = 31
+    header.Parent = overlay
+
+    local HC = Instance.new("UICorner")
+    HC.CornerRadius = UDim.new(0, 16)
+    HC.Parent = header
+
+    local headerFix = Instance.new("Frame")
+    headerFix.Size = UDim2.new(1, 0, 0.4, 0)
+    headerFix.Position = UDim2.new(0, 0, 0.6, 0)
+    headerFix.BackgroundColor3 = Theme.Surface
+    headerFix.BorderSizePixel = 0
+    headerFix.ZIndex = 31
+    headerFix.Parent = header
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 1, 0)
+    title.Position = UDim2.new(0, 12, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "MATCH STATS"
+    title.TextColor3 = Theme.Accent
+    title.Font = Enum.Font.GothamBlack
+    title.TextSize = 14
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 32
+    title.Parent = header
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 28, 0, 28)
+    closeBtn.Position = UDim2.new(1, -34, 0.5, -14)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
+    closeBtn.Text = "×"
+    closeBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 16
+    closeBtn.BorderSizePixel = 0
+    closeBtn.AutoButtonColor = false
+    closeBtn.ZIndex = 32
+    closeBtn.Parent = header
+
+    local CC = Instance.new("UICorner")
+    CC.CornerRadius = UDim.new(0, 8)
+    CC.Parent = closeBtn
+
+    closeBtn.MouseButton1Click:Connect(function()
+        statsOpen = false
+        overlay.Visible = false
+    end)
+
+    local teamLabels = Instance.new("Frame")
+    teamLabels.Size = UDim2.new(1, -20, 0, 24)
+    teamLabels.Position = UDim2.new(0, 10, 0, 46)
+    teamLabels.BackgroundTransparency = 1
+    teamLabels.ZIndex = 31
+    teamLabels.Parent = overlay
+
+    local labelA = Instance.new("TextLabel")
+    labelA.Size = UDim2.new(0.5, -5, 1, 0)
+    labelA.Position = UDim2.new(0, 0, 0, 0)
+    labelA.BackgroundColor3 = Color3.fromRGB(255, 50, 100)
+    labelA.BackgroundTransparency = 0.85
+    labelA.Text = "КОМАНДА A"
+    labelA.TextColor3 = Color3.fromRGB(255, 100, 140)
+    labelA.Font = Enum.Font.GothamBold
+    labelA.TextSize = 11
+    labelA.ZIndex = 32
+    labelA.Parent = teamLabels
+
+    local LAC = Instance.new("UICorner")
+    LAC.CornerRadius = UDim.new(0, 6)
+    LAC.Parent = labelA
+
+    local labelB = Instance.new("TextLabel")
+    labelB.Size = UDim2.new(0.5, -5, 1, 0)
+    labelB.Position = UDim2.new(0.5, 5, 0, 0)
+    labelB.BackgroundColor3 = Color3.fromRGB(50, 200, 255)
+    labelB.BackgroundTransparency = 0.85
+    labelB.Text = "КОМАНДА B"
+    labelB.TextColor3 = Color3.fromRGB(100, 220, 255)
+    labelB.Font = Enum.Font.GothamBold
+    labelB.TextSize = 11
+    labelB.ZIndex = 32
+    labelB.Parent = teamLabels
+
+    local LBC = Instance.new("UICorner")
+    LBC.CornerRadius = UDim.new(0, 6)
+    LBC.Parent = labelB
+
+    local scrollA = Instance.new("ScrollingFrame")
+    scrollA.Name = "ListA"
+    scrollA.Size = UDim2.new(0.5, -15, 1, -90)
+    scrollA.Position = UDim2.new(0, 10, 0, 76)
+    scrollA.BackgroundTransparency = 1
+    scrollA.BorderSizePixel = 0
+    scrollA.ScrollBarThickness = 3
+    scrollA.ScrollBarImageColor3 = Theme.Accent
+    scrollA.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollA.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scrollA.ZIndex = 31
+    scrollA.Parent = overlay
+
+    local LA = Instance.new("UIListLayout")
+    LA.SortOrder = Enum.SortOrder.LayoutOrder
+    LA.Padding = UDim.new(0, 6)
+    LA.Parent = scrollA
+
+    local scrollB = Instance.new("ScrollingFrame")
+    scrollB.Name = "ListB"
+    scrollB.Size = UDim2.new(0.5, -15, 1, -90)
+    scrollB.Position = UDim2.new(0.5, 5, 0, 76)
+    scrollB.BackgroundTransparency = 1
+    scrollB.BorderSizePixel = 0
+    scrollB.ScrollBarThickness = 3
+    scrollB.ScrollBarImageColor3 = Theme.Accent3
+    scrollB.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollB.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scrollB.ZIndex = 31
+    scrollB.Parent = overlay
+
+    local LB = Instance.new("UIListLayout")
+    LB.SortOrder = Enum.SortOrder.LayoutOrder
+    LB.Padding = UDim.new(0, 6)
+    LB.Parent = scrollB
+
+    local dragM = false
+    local dragMS, dragMP
+
+    header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragM = true
+            dragMS = input.Position
+            dragMP = overlay.Position
+        end
+    end)
+
+    header.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragM = false
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if dragM and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragMS
+            overlay.Position = UDim2.new(dragMP.X.Scale, dragMP.X.Offset + d.X, dragMP.Y.Scale, dragMP.Y.Offset + d.Y)
+        end
+    end)
+
+    return overlay
+end
+
+local function makeRow(parent, entry, isMe, side)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 54)
+    row.BackgroundColor3 = isMe and Color3.fromRGB(40, 20, 40) or Color3.fromRGB(20, 20, 32)
+    row.BackgroundTransparency = isMe and 0 or 0.3
+    row.BorderSizePixel = 0
+    row.ZIndex = 32
+    row.Parent = parent
+
+    local RC = Instance.new("UICorner")
+    RC.CornerRadius = UDim.new(0, 10)
+    RC.Parent = row
+
+    if isMe then
+        local RS = Instance.new("UIStroke")
+        RS.Color = Theme.Accent
+        RS.Thickness = 1.5
+        RS.Parent = row
+    else
+        local RS = Instance.new("UIStroke")
+        RS.Color = side == "A" and Color3.fromRGB(120, 40, 60) or Color3.fromRGB(40, 100, 140)
+        RS.Thickness = 1
+        RS.Transparency = 0.5
+        RS.Parent = row
+    end
+
+    local nameLbl = Instance.new("TextLabel")
+    nameLbl.Size = UDim2.new(1, -20, 0, 20)
+    nameLbl.Position = UDim2.new(0, 10, 0, 6)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.Text = entry.name
+    nameLbl.TextColor3 = isMe and Theme.Accent or Theme.Text
+    nameLbl.Font = Enum.Font.GothamBold
+    nameLbl.TextSize = 13
+    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+    nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    nameLbl.ZIndex = 33
+    nameLbl.Parent = row
+
+    local streakColor_ = streakColor(entry.streak or 0)
+    local streakLbl = Instance.new("TextLabel")
+    streakLbl.Size = UDim2.new(1, -20, 0, 20)
+    streakLbl.Position = UDim2.new(0, 10, 0, 28)
+    streakLbl.BackgroundTransparency = 1
+    streakLbl.Text = string.format("⭐ %s  |  Ур. %s  |  K/D: %s",
+        tostring(entry.streak or 0),
+        tostring(entry.level or 0),
+        entry.kd ~= "" and entry.kd or "—"
+    )
+    streakLbl.TextColor3 = streakColor_
+    streakLbl.Font = Enum.Font.GothamMedium
+    streakLbl.TextSize = 11
+    streakLbl.TextXAlignment = Enum.TextXAlignment.Left
+    streakLbl.ZIndex = 33
+    streakLbl.Parent = row
+
+    return row
+end
+
+local function refreshOverlay()
+    if not statsOverlay then return end
+    if not statsOpen then return end
+
+    local listA = statsOverlay:FindFirstChild("ListA")
+    local listB = statsOverlay:FindFirstChild("ListB")
+    if not listA or not listB then return end
+
+    for _, c in ipairs(listA:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+    for _, c in ipairs(listB:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+
+    local function sortByStreak(list)
+        local copy = {}
+        for _, e in ipairs(list) do
+            table.insert(copy, e)
+        end
+        table.sort(copy, function(a, b)
+            return (a.streak or 0) > (b.streak or 0)
+        end)
+        return copy
+    end
+
+    for _, e in ipairs(sortByStreak(matchData.playersA)) do
+        makeRow(listA, e, e.userId == plr.UserId, "A")
+    end
+    for _, e in ipairs(sortByStreak(matchData.playersB)) do
+        makeRow(listB, e, e.userId == plr.UserId, "B")
+    end
+
+    if #matchData.playersA == 0 then
+        local empty = Instance.new("TextLabel")
+        empty.Size = UDim2.new(1, 0, 0, 30)
+        empty.BackgroundTransparency = 1
+        empty.Text = "Ожидание данных..."
+        empty.TextColor3 = Theme.TextDim
+        empty.Font = Enum.Font.Gotham
+        empty.TextSize = 11
+        empty.ZIndex = 32
+        empty.Parent = listA
+    end
+    if #matchData.playersB == 0 then
+        local empty = Instance.new("TextLabel")
+        empty.Size = UDim2.new(1, 0, 0, 30)
+        empty.BackgroundTransparency = 1
+        empty.Text = "Ожидание данных..."
+        empty.TextColor3 = Theme.TextDim
+        empty.Font = Enum.Font.Gotham
+        empty.TextSize = 11
+        empty.ZIndex = 32
+        empty.Parent = listB
+    end
+end
+
+statsOverlay = buildStatsOverlay()
+
+task.spawn(function()
+    while statsOverlay and statsOverlay.Parent do
+        task.wait(0.5)
+        if statsOpen then
+            refreshOverlay()
+        end
+    end
+end)
+
+StatsBtn.MouseButton1Click:Connect(function()
+    statsOpen = not statsOpen
+    statsOverlay.Visible = statsOpen
+    if statsOpen then
+        refreshOverlay()
+        TweenService:Create(SB_Stroke, TweenInfo.new(0.2), {Transparency = 0.4}):Play()
+    else
+        TweenService:Create(SB_Stroke, TweenInfo.new(0.2), {Transparency = 0}):Play()
+    end
+end)
+
+StatsBtn.MouseEnter:Connect(function()
+    TweenService:Create(StatsBtn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Surface2}):Play()
+end)
+StatsBtn.MouseLeave:Connect(function()
+    TweenService:Create(StatsBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(14, 14, 22)}):Play()
+end)
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0.5, 0, 0.65, 0)
