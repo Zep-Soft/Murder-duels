@@ -431,13 +431,13 @@ Version.ZIndex = 3
 Version.Parent = TopBar
 
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
-MinBtn.Position = UDim2.new(0.82, 0, 0.15, 0)
+MinBtn.Size = UDim2.new(0, 32, 0, 32)
+MinBtn.Position = UDim2.new(1, -80, 0.5, -16)
 MinBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
 MinBtn.Text = "−"
 MinBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
 MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 24
+MinBtn.TextSize = 22
 MinBtn.TextScaled = false
 MinBtn.BorderSizePixel = 0
 MinBtn.AutoButtonColor = false
@@ -449,13 +449,13 @@ MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
-CloseBtn.Position = UDim2.new(0.93, 0, 0.15, 0)
+CloseBtn.Size = UDim2.new(0, 32, 0, 32)
+CloseBtn.Position = UDim2.new(1, -42, 0.5, -16)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
 CloseBtn.Text = "×"
 CloseBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 24
+CloseBtn.TextSize = 22
 CloseBtn.TextScaled = false
 CloseBtn.BorderSizePixel = 0
 CloseBtn.AutoButtonColor = false
@@ -527,9 +527,15 @@ SideLineG.Parent = SideLine
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(0.72, 0, 0.87, 0)
 Content.Position = UDim2.new(0.28, 0, 0.13, 0)
-Content.BackgroundTransparency = 1
-Content.ZIndex = 5
+Content.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
+Content.BackgroundTransparency = 0
+Content.BorderSizePixel = 0
+Content.ZIndex = 4
 Content.Parent = Main
+
+local ContentC = Instance.new("UICorner")
+ContentC.CornerRadius = UDim.new(0, 18)
+ContentC.Parent = Content
 
 local Pages = {}
 
@@ -696,12 +702,18 @@ local function MakeSection(parent, text)
     S.Size = UDim2.new(1, 0, 0, 20)
     S.BackgroundTransparency = 1
     S.Text = string.upper(text)
-    S.TextColor3 = Theme.Accent
+    S.TextColor3 = Theme.Accent3
     S.Font = Enum.Font.GothamBold
-    S.TextSize = 10
+    S.TextSize = 11
     S.TextXAlignment = Enum.TextXAlignment.Left
     S.ZIndex = 6
     S.Parent = parent
+
+    local SStroke = Instance.new("UIStroke")
+    SStroke.Color = Color3.fromRGB(0, 0, 0)
+    SStroke.Thickness = 1
+    SStroke.Transparency = 0.5
+    SStroke.Parent = S
 end
 
 local function MakeToggle(parent, text, default, callback)
@@ -718,16 +730,16 @@ local function MakeToggle(parent, text, default, callback)
 
     local CG = Instance.new("UIGradient")
     CG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 36, 54)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 26, 40)),
     })
     CG.Rotation = 45
     CG.Parent = C
 
     local CS = Instance.new("UIStroke")
-    CS.Color = Theme.Stroke
+    CS.Color = Color3.fromRGB(60, 60, 85)
     CS.Thickness = 1
-    CS.Transparency = 0.4
+    CS.Transparency = 0.2
     CS.Parent = C
 
     local Lbl = Instance.new("TextLabel")
@@ -825,8 +837,6 @@ local function MakeButton(parent, text, color, callback)
     BtnStroke.Thickness = 1
     BtnStroke.Transparency = 0.85
     BtnStroke.Parent = Btn
-
-    local origColor = color or Theme.Accent
 
     Btn.MouseEnter:Connect(function()
         TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Transparency = 0.5}):Play()
@@ -1018,9 +1028,10 @@ local TeamLabel = Instance.new("TextLabel")
 TeamLabel.Size = UDim2.new(1, 0, 0, 34)
 TeamLabel.BackgroundColor3 = Theme.Surface2
 TeamLabel.Text = "Команда: определяется..."
-TeamLabel.TextColor3 = Theme.Text
+TeamLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TeamLabel.Font = Enum.Font.GothamMedium
 TeamLabel.TextSize = 12
+TeamLabel.TextXAlignment = Enum.TextXAlignment.Center
 TeamLabel.ZIndex = 6
 TeamLabel.Parent = PageMain
 
@@ -1136,12 +1147,14 @@ local function OpenUI()
     Main.Size = UDim2.new(0.4, 0, 0.5, 0)
     Main.Position = UDim2.new(0.3, 0, 0.25, 0)
     Main.BackgroundTransparency = 1
-    TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+    local t = TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
         Size = baseSize,
         Position = basePos,
         BackgroundTransparency = 0,
-    }):Play()
-    task.wait(0.3)
+    })
+    t:Play()
+    t.Completed:Wait()
+    Main.BackgroundTransparency = 0
     uiOpen = true
     uiAnimating = false
 end
@@ -1149,12 +1162,13 @@ end
 local function CloseUI()
     if not uiOpen or uiAnimating then return end
     uiAnimating = true
-    TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+    local t = TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
         Size = UDim2.new(0.4, 0, 0.5, 0),
         Position = UDim2.new(0.3, 0, 0.25, 0),
         BackgroundTransparency = 1,
-    }):Play()
-    task.wait(0.25)
+    })
+    t:Play()
+    t.Completed:Wait()
     Main.Visible = false
     Main.Size = baseSize
     Main.Position = basePos
