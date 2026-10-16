@@ -63,33 +63,28 @@ if _G.ZepHub_Loaded then
 end
 _G.ZepHub_Loaded = true
 
-local marker = Instance.new("Part")
-marker.Name = "ZepHubMarker"
-marker.Size = Vector3.new(0.1, 0.1, 0.1)
-marker.Transparency = 1
-marker.CanCollide = false
-marker.Anchored = true
-marker.Massless = true
-marker.Parent = workspace
-
-task.spawn(function()
-    while marker and marker.Parent do
-        task.wait(0.5)
-        local myChar = plr.Character
-        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if myHRP then
-            marker.CFrame = myHRP.CFrame * CFrame.new(0, 5, 0)
-        end
-    end
-end)
+local _kicked = false
 
 task.spawn(function()
     while true do
         task.wait(10)
+        if _kicked then break end
         pcall(function()
             local response = game:HttpGet(RESET_URL)
             if response and response:find("RESET") then
-                plr:Kick("Скрипт обновлён. Можете зайти заново")
+                _kicked = true
+                pcall(function()
+                    plr:Kick("Скрипт обновлён. Можете зайти заново")
+                end)
+                task.wait(1)
+                if _G.ZepHub_Loaded then
+                    pcall(function()
+                        RunService:UnbindFromRenderStep("ZepAimStep")
+                    end)
+                    local sg = CoreGui:FindFirstChild("ZepHubUI")
+                    if sg then sg:Destroy() end
+                    _G.ZepHub_Loaded = false
+                end
             end
         end)
     end
@@ -429,6 +424,14 @@ local MinC = Instance.new("UICorner")
 MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
+local MinG = Instance.new("UIGradient")
+MinG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Surface2),
+    ColorSequenceKeypoint.new(1, Theme.Surface),
+})
+MinG.Rotation = 45
+MinG.Parent = MinBtn
+
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0.06, 0, 0.55, 0)
 CloseBtn.Position = UDim2.new(0.93, 0, 0.225, 0)
@@ -445,6 +448,14 @@ CloseBtn.Parent = TopBar
 local CloseC = Instance.new("UICorner")
 CloseC.CornerRadius = UDim.new(0, 9)
 CloseC.Parent = CloseBtn
+
+local CloseG = Instance.new("UIGradient")
+CloseG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Surface2),
+    ColorSequenceKeypoint.new(1, Theme.Surface),
+})
+CloseG.Rotation = 45
+CloseG.Parent = CloseBtn
 
 CloseBtn.MouseEnter:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
@@ -581,6 +592,14 @@ local function MakeTab(name, subtitle, pageName)
     IndC.CornerRadius = UDim.new(1, 0)
     IndC.Parent = Ind
 
+    local IndG = Instance.new("UIGradient")
+    IndG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Theme.Accent),
+        ColorSequenceKeypoint.new(1, Theme.Accent2),
+    })
+    IndG.Rotation = 90
+    IndG.Parent = Ind
+
     local Lbl = Instance.new("TextLabel")
     Lbl.Size = UDim2.new(1, -20, 0, 22)
     Lbl.Position = UDim2.new(0, 18, 0, 5)
@@ -687,6 +706,20 @@ local function MakeToggle(parent, text, default, callback)
     CC.CornerRadius = UDim.new(0, 12)
     CC.Parent = C
 
+    local CG = Instance.new("UIGradient")
+    CG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+    })
+    CG.Rotation = 45
+    CG.Parent = C
+
+    local CS = Instance.new("UIStroke")
+    CS.Color = Theme.Stroke
+    CS.Thickness = 1
+    CS.Transparency = 0.4
+    CS.Parent = C
+
     local Lbl = Instance.new("TextLabel")
     Lbl.Size = UDim2.new(1, -90, 1, 0)
     Lbl.Position = UDim2.new(0, 18, 0, 0)
@@ -768,6 +801,14 @@ local function MakeButton(parent, text, color, callback)
     local BC = Instance.new("UICorner")
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
+
+    local BG = Instance.new("UIGradient")
+    BG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color or Theme.Accent),
+        ColorSequenceKeypoint.new(1, Theme.Accent2),
+    })
+    BG.Rotation = 45
+    BG.Parent = Btn
 
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
@@ -944,6 +985,14 @@ TeamLabel.TextSize = 12
 TeamLabel.ZIndex = 6
 TeamLabel.Parent = PageMain
 
+local TeamGrad = Instance.new("UIGradient")
+TeamGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+})
+TeamGrad.Rotation = 45
+TeamGrad.Parent = TeamLabel
+
 task.spawn(function()
     while true do
         task.wait(1)
@@ -1040,6 +1089,14 @@ local FBS = Instance.new("UIStroke")
 FBS.Color = Theme.Accent
 FBS.Thickness = 2
 FBS.Parent = FloatBtn
+
+local FBG = Instance.new("UIGradient")
+FBG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent),
+    ColorSequenceKeypoint.new(1, Theme.Accent2),
+})
+FBG.Rotation = 45
+FBG.Parent = FBS
 
 local FBIcon = Instance.new("Frame")
 FBIcon.Size = UDim2.new(0.5, 0, 0.5, 0)
