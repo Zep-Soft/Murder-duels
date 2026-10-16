@@ -68,7 +68,7 @@ marker.CanQuery = false
 marker.CanTouch = false
 marker.Parent = workspace.CurrentCamera
 
-local markerThread = task.spawn(function()
+task.spawn(function()
     while marker and marker.Parent do
         task.wait(0.5)
         local myChar = plr.Character
@@ -79,7 +79,7 @@ local markerThread = task.spawn(function()
     end
 end)
 
-local resetThread = task.spawn(function()
+task.spawn(function()
     while true do
         task.wait(10)
         pcall(function()
@@ -291,6 +291,7 @@ local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0.5, 0, 0.65, 0)
 Main.Position = UDim2.new(0.25, 0, 0.175, 0)
 Main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
+Main.BackgroundTransparency = 1
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
 Main.Visible = true
@@ -432,9 +433,9 @@ Version.Parent = TopBar
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
 MinBtn.Position = UDim2.new(0.82, 0, 0.15, 0)
-MinBtn.BackgroundColor3 = Theme.Surface2
+MinBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
 MinBtn.Text = "−"
-MinBtn.TextColor3 = Theme.Text
+MinBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
 MinBtn.Font = Enum.Font.GothamBold
 MinBtn.TextSize = 24
 MinBtn.TextScaled = false
@@ -450,9 +451,9 @@ MinC.Parent = MinBtn
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
 CloseBtn.Position = UDim2.new(0.93, 0, 0.15, 0)
-CloseBtn.BackgroundColor3 = Theme.Surface2
+CloseBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
 CloseBtn.Text = "×"
-CloseBtn.TextColor3 = Theme.Text
+CloseBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 24
 CloseBtn.TextScaled = false
@@ -473,21 +474,21 @@ CloseBtn.MouseEnter:Connect(function()
 end)
 CloseBtn.MouseLeave:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Surface2,
-        TextColor3 = Theme.Text,
+        BackgroundColor3 = Color3.fromRGB(34, 34, 50),
+        TextColor3 = Color3.fromRGB(245, 245, 255),
     }):Play()
 end)
 
 MinBtn.MouseEnter:Connect(function()
     TweenService:Create(MinBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Accent,
+        BackgroundColor3 = Color3.fromRGB(255, 50, 100),
         TextColor3 = Color3.fromRGB(255, 255, 255),
     }):Play()
 end)
 MinBtn.MouseLeave:Connect(function()
     TweenService:Create(MinBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Surface2,
-        TextColor3 = Theme.Text,
+        BackgroundColor3 = Color3.fromRGB(34, 34, 50),
+        TextColor3 = Color3.fromRGB(245, 245, 255),
     }):Play()
 end)
 
@@ -1094,6 +1095,45 @@ MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 18
     cachedTargetPlayer = nil
 end)
 
+local uiOpen = true
+local uiAnimating = false
+local baseSize = UDim2.new(0.5, 0, 0.65, 0)
+local basePos = UDim2.new(0.25, 0, 0.175, 0)
+
+local function OpenUI()
+    if uiOpen or uiAnimating then return end
+    uiAnimating = true
+    Main.Visible = true
+    Main.Size = UDim2.new(0.4, 0, 0.5, 0)
+    Main.Position = UDim2.new(0.3, 0, 0.25, 0)
+    Main.BackgroundTransparency = 1
+    TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        Size = baseSize,
+        Position = basePos,
+        BackgroundTransparency = 0,
+    }):Play()
+    task.wait(0.3)
+    uiOpen = true
+    uiAnimating = false
+end
+
+local function CloseUI()
+    if not uiOpen or uiAnimating then return end
+    uiAnimating = true
+    TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+        Size = UDim2.new(0.4, 0, 0.5, 0),
+        Position = UDim2.new(0.3, 0, 0.25, 0),
+        BackgroundTransparency = 1,
+    }):Play()
+    task.wait(0.25)
+    Main.Visible = false
+    Main.Size = baseSize
+    Main.Position = basePos
+    Main.BackgroundTransparency = 0
+    uiOpen = false
+    uiAnimating = false
+end
+
 local function UnloadAll()
     Config.AimLock = false
     Config.AimHold = false
@@ -1218,17 +1258,19 @@ end)
 
 FloatBtn.MouseButton1Click:Connect(function()
     if movedF then return end
-    Main.Visible = not Main.Visible
+    if uiOpen then
+        CloseUI()
+    else
+        OpenUI()
+    end
 end)
 
 local dragM = false
 local dragMS, dragMP
-local dragMoved = false
 
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragM = true
-        dragMoved = false
         dragMS = input.Position
         dragMP = Main.Position
     end
@@ -1241,13 +1283,13 @@ end)
 UIS.InputChanged:Connect(function(input)
     if dragM and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local d = input.Position - dragMS
-        if math.abs(d.X) > 2 or math.abs(d.Y) > 2 then dragMoved = true end
         Main.Position = UDim2.new(dragMP.X.Scale, dragMP.X.Offset + d.X, dragMP.Y.Scale, dragMP.Y.Offset + d.Y)
+        basePos = Main.Position
     end
 end)
 
 MinBtn.MouseButton1Click:Connect(function()
-    Main.Visible = false
+    CloseUI()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
