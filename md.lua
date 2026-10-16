@@ -23,8 +23,8 @@ if game.PlaceId ~= MD_PLACE_ID then
     frame.Parent = gui
 
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -0.1, 0, 0.15)
-    title.Position = UDim2.new(0, 0, 0.4, 0)
+    title.Size = UDim2.new(1, -20, 0, 60)
+    title.Position = UDim2.new(0, 10, 0.4, 0)
     title.BackgroundTransparency = 1
     title.Text = "СКРИПТ НЕ ДЛЯ ЭТОЙ ИГРЫ"
     title.TextColor3 = Color3.fromRGB(255, 50, 100)
@@ -34,8 +34,8 @@ if game.PlaceId ~= MD_PLACE_ID then
     title.Parent = frame
 
     local info = Instance.new("TextLabel")
-    info.Size = UDim2.new(1, -0.1, 0, 0.2)
-    info.Position = UDim2.new(0, 0, 0.5, 0)
+    info.Size = UDim2.new(1, -20, 0, 80)
+    info.Position = UDim2.new(0, 10, 0.5, 0)
     info.BackgroundTransparency = 1
     info.Text = "Zep Hub работает только в Murder Duels.\nЗайди в MD и запусти скрипт снова."
     info.TextColor3 = Color3.fromRGB(245, 245, 255)
@@ -64,9 +64,11 @@ marker.Transparency = 1
 marker.CanCollide = false
 marker.Anchored = true
 marker.Massless = true
-marker.Parent = workspace
+marker.CanQuery = false
+marker.CanTouch = false
+marker.Parent = workspace.CurrentCamera
 
-task.spawn(function()
+local markerThread = task.spawn(function()
     while marker and marker.Parent do
         task.wait(0.5)
         local myChar = plr.Character
@@ -77,12 +79,12 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function()
+local resetThread = task.spawn(function()
     while true do
         task.wait(10)
         pcall(function()
             local response = game:HttpGet(RESET_URL)
-            if response and response:find("RESET") then
+            if response and response:gsub("%s", "") == "RESET" then
                 pcall(function()
                     plr:Kick("Скрипт обновлён. Можете зайти заново")
                 end)
@@ -93,6 +95,7 @@ task.spawn(function()
                     end)
                     local sg = CoreGui:FindFirstChild("ZepHubUI")
                     if sg then sg:Destroy() end
+                    if marker then marker:Destroy() end
                     _G.ZepHub_Loaded = false
                 end
             end
@@ -134,6 +137,7 @@ local MyTeam = nil
 local MyTeamColor = nil
 local CurrentTarget = nil
 local lastValidTime = 0
+local cachedTargetPlayer = nil
 
 local function TrySetTeam(text)
     if not text then return end
@@ -146,6 +150,7 @@ local function TrySetTeam(text)
     if newTeam and newTeam ~= MyTeam then
         MyTeam = newTeam
         CurrentTarget = nil
+        cachedTargetPlayer = nil
     end
 end
 
@@ -155,45 +160,51 @@ TextChatService.MessageReceived:Connect(function(msg)
     end)
 end)
 
-task.spawn(function()
-    local playerGui = plr:WaitForChild("PlayerGui")
-    local function scanAll()
-        for _, gui in pairs(playerGui:GetChildren()) do
-            if gui:IsA("ScreenGui") then
-                for _, obj in pairs(gui:GetDescendants()) do
-                    if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
-                        TrySetTeam(obj.Text)
-                    end
+local function ScanPlayerGuiForTeam()
+    local playerGui = plr:FindFirstChildOfClass("PlayerGui")
+    if not playerGui then return end
+    for _, gui in pairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            for _, obj in pairs(gui:GetDescendants()) do
+                if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
+                    TrySetTeam(obj.Text)
                 end
             end
         end
     end
-    task.spawn(function()
-        while true do
-            task.wait(0.5)
-            if not MyTeam then scanAll() end
-        end
-    end)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if not MyTeam then ScanPlayerGuiForTeam() end
+    end
 end)
+
+local function UpdateTeamFromRoblox()
+    if plr.Team and plr.Team.Name then
+        local n = plr.Team.Name
+        if n == "A" or n:find("A") then
+            if MyTeam ~= "A" then
+                MyTeam = "A"
+                CurrentTarget = nil
+                cachedTargetPlayer = nil
+            end
+        elseif n == "B" or n:find("B") then
+            if MyTeam ~= "B" then
+                MyTeam = "B"
+                CurrentTarget = nil
+                cachedTargetPlayer = nil
+            end
+        end
+        MyTeamColor = plr.TeamColor
+    end
+end
 
 task.spawn(function()
     while true do
         task.wait(2)
-        if plr.Team and plr.Team.Name then
-            local n = plr.Team.Name
-            if n == "A" or n:find("A") then
-                if MyTeam ~= "A" then
-                    MyTeam = "A"
-                    CurrentTarget = nil
-                end
-            elseif n == "B" or n:find("B") then
-                if MyTeam ~= "B" then
-                    MyTeam = "B"
-                    CurrentTarget = nil
-                end
-            end
-            MyTeamColor = plr.TeamColor
-        end
+        UpdateTeamFromRoblox()
     end
 end)
 
@@ -271,8 +282,9 @@ FOVDotC.CornerRadius = UDim.new(1, 0)
 FOVDotC.Parent = FOVDot
 
 local function UpdateFOVVisibility()
-    FOVCircle.Visible = (Config.AimLock or Config.AimHold)
-    FOVDot.Visible = (Config.AimLock or Config.AimHold)
+    local visible = (Config.AimLock or Config.AimHold)
+    FOVCircle.Visible = visible
+    FOVDot.Visible = visible
 end
 
 local Main = Instance.new("Frame")
@@ -422,7 +434,7 @@ MinBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
 MinBtn.Position = UDim2.new(0.82, 0, 0.15, 0)
 MinBtn.BackgroundColor3 = Theme.Surface2
 MinBtn.Text = "−"
-MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinBtn.TextColor3 = Theme.Text
 MinBtn.Font = Enum.Font.GothamBold
 MinBtn.TextSize = 24
 MinBtn.TextScaled = false
@@ -435,20 +447,12 @@ local MinC = Instance.new("UICorner")
 MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
-local MinG = Instance.new("UIGradient")
-MinG.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Theme.Surface2),
-    ColorSequenceKeypoint.new(1, Theme.Surface),
-})
-MinG.Rotation = 45
-MinG.Parent = MinBtn
-
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
 CloseBtn.Position = UDim2.new(0.93, 0, 0.15, 0)
 CloseBtn.BackgroundColor3 = Theme.Surface2
 CloseBtn.Text = "×"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextColor3 = Theme.Text
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 24
 CloseBtn.TextScaled = false
@@ -460,14 +464,6 @@ CloseBtn.Parent = TopBar
 local CloseC = Instance.new("UICorner")
 CloseC.CornerRadius = UDim.new(0, 9)
 CloseC.Parent = CloseBtn
-
-local CloseG = Instance.new("UIGradient")
-CloseG.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Theme.Surface2),
-    ColorSequenceKeypoint.new(1, Theme.Surface),
-})
-CloseG.Rotation = 45
-CloseG.Parent = CloseBtn
 
 CloseBtn.MouseEnter:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
@@ -573,12 +569,13 @@ local function SwitchPage(name)
 end
 
 local Tabs = {}
+local TabList = {}
 local ActiveTab = nil
 
 local function MakeTab(name, subtitle, pageName)
     local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, -20, 0, 48)
-    Btn.Position = UDim2.new(0, 10, 0, 10 + (#Tabs * 54))
+    Btn.Position = UDim2.new(0, 10, 0, 10 + (#TabList * 54))
     Btn.BackgroundColor3 = Theme.Surface2
     Btn.BackgroundTransparency = 1
     Btn.Text = ""
@@ -684,7 +681,7 @@ local function MakeTab(name, subtitle, pageName)
     end)
 
     Tabs[Btn] = SetActive
-    table.insert(Tabs, Btn)
+    table.insert(TabList, Btn)
 
     if not ActiveTab then
         ActiveTab = Btn
@@ -814,14 +811,6 @@ local function MakeButton(parent, text, color, callback)
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
 
-    local BG = Instance.new("UIGradient")
-    BG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, color or Theme.Accent),
-        ColorSequenceKeypoint.new(1, Theme.Accent2),
-    })
-    BG.Rotation = 45
-    BG.Parent = Btn
-
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
     end)
@@ -851,16 +840,19 @@ end
 
 local function HasLineOfSight(targetChar)
     local myChar = plr.Character
-    if not myChar then return false end
+    if not myChar or not myChar.Parent then return false end
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
     if not myHRP then return false end
     local targetHead = targetChar:FindFirstChild("Head")
     if not targetHead then return false end
-    local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {myChar}
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    local dir = targetHead.Position - myHRP.Position
-    local result = workspace:Raycast(myHRP.Position, dir, rayParams)
+    local ok, result = pcall(function()
+        local rayParams = RaycastParams.new()
+        rayParams.FilterDescendantsInstances = {myChar}
+        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+        local dir = targetHead.Position - myHRP.Position
+        return workspace:Raycast(myHRP.Position, dir, rayParams)
+    end)
+    if not ok then return false end
     if result then
         if result.Instance:IsDescendantOf(targetChar) then
             return true
@@ -881,15 +873,17 @@ local function GetClosestTarget()
     local center = cam.ViewportSize / 2
     local now = tick()
 
-    if CurrentTarget then
+    if CurrentTarget and CurrentTarget.Parent then
         local stillValid = true
         local hum = CurrentTarget:FindFirstChildOfClass("Humanoid")
         local head = CurrentTarget:FindFirstChild("Head")
         if not hum or hum.Health <= 0 or not head then
             stillValid = false
         else
-            local player = Players:GetPlayerFromCharacter(CurrentTarget)
-            if not player or IsTeammate(player) then
+            if not cachedTargetPlayer then
+                cachedTargetPlayer = Players:GetPlayerFromCharacter(CurrentTarget)
+            end
+            if not cachedTargetPlayer or cachedTargetPlayer.Parent ~= Players or IsTeammate(cachedTargetPlayer) then
                 stillValid = false
             elseif Config.IgnoreWalls and not HasLineOfSight(CurrentTarget) then
                 stillValid = false
@@ -905,10 +899,13 @@ local function GetClosestTarget()
                 end
             end
             if now - lastValidTime < HOLD_TIME then
-                return CurrentTarget, GetTargetPart(CurrentTarget)
+                if (not Config.IgnoreWalls) or HasLineOfSight(CurrentTarget) then
+                    return CurrentTarget, GetTargetPart(CurrentTarget)
+                end
             end
         end
         CurrentTarget = nil
+        cachedTargetPlayer = nil
     end
 
     local bestChar = nil
@@ -916,7 +913,7 @@ local function GetClosestTarget()
     local bestDist = math.huge
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= plr and p.Character and not IsTeammate(p) then
+        if p ~= plr and p.Character and p.Character.Parent and not IsTeammate(p) then
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
                 local head = p.Character:FindFirstChild("Head")
@@ -943,6 +940,7 @@ local function GetClosestTarget()
 
     if bestChar then
         CurrentTarget = bestChar
+        cachedTargetPlayer = Players:GetPlayerFromCharacter(bestChar)
         lastValidTime = now
         return bestChar, bestPart
     end
@@ -964,11 +962,16 @@ RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
             local cam = workspace.CurrentCamera
             cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
             local myChar = plr.Character
-            local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local lookPos = Vector3.new(part.Position.X, hrp.Position.Y, part.Position.Z)
-                hrp.CFrame = CFrame.new(hrp.Position, lookPos)
+            local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.AutoRotate = false
             end
+        end
+    else
+        local myChar = plr.Character
+        local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if hum and not hum.AutoRotate then
+            hum.AutoRotate = true
         end
     end
 end)
@@ -1010,14 +1013,18 @@ TeamGrad.Rotation = 45
 TeamGrad.Parent = TeamLabel
 
 task.spawn(function()
-    while true do
+    local lastTeam = nil
+    while TeamLabel and TeamLabel.Parent do
         task.wait(1)
-        if MyTeam then
-            TeamLabel.Text = "Команда: " .. MyTeam
-            TeamLabel.TextColor3 = Theme.Green
-        else
-            TeamLabel.Text = "Команда: не определена"
-            TeamLabel.TextColor3 = Theme.TextDim
+        if MyTeam ~= lastTeam then
+            lastTeam = MyTeam
+            if MyTeam then
+                TeamLabel.Text = "Команда: " .. MyTeam
+                TeamLabel.TextColor3 = Theme.Green
+            else
+                TeamLabel.Text = "Команда: не определена"
+                TeamLabel.TextColor3 = Theme.TextDim
+            end
         end
     end
 end)
@@ -1028,33 +1035,54 @@ MakeToggle(PageVisuals, "ESP игроков (без тиммейтов)", false,
 end)
 
 local espObjects = {}
+local espTargets = {}
+
 local function ClearESP()
     for _, obj in pairs(espObjects) do
         if obj and obj.Parent then obj:Destroy() end
     end
     espObjects = {}
+    espTargets = {}
 end
 
-RunService.Heartbeat:Connect(function()
-    if Config.ESP then
-        ClearESP()
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= plr and p.Character and not IsTeammate(p) then
-                local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
+local function UpdateESP()
+    if not Config.ESP then
+        if #espObjects > 0 then ClearESP() end
+        return
+    end
+    for _, p in ipairs(Players:GetPlayers()) do
+        local char = p.Character
+        if p ~= plr and char and char.Parent and not IsTeammate(p) then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                if not espTargets[char] then
                     local hl = Instance.new("Highlight")
                     hl.FillColor = Color3.fromRGB(255, 0, 0)
                     hl.OutlineColor = Color3.fromRGB(255, 0, 0)
                     hl.FillTransparency = 0.4
                     hl.OutlineTransparency = 0
                     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    hl.Parent = p.Character
+                    hl.Parent = char
+                    espTargets[char] = hl
                     table.insert(espObjects, hl)
                 end
+            else
+                if espTargets[char] then
+                    pcall(function() espTargets[char]:Destroy() end)
+                    espTargets[char] = nil
+                end
             end
+        elseif char and espTargets[char] then
+            pcall(function() espTargets[char]:Destroy() end)
+            espTargets[char] = nil
         end
-    elseif #espObjects > 0 then
-        ClearESP()
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.15)
+        pcall(UpdateESP)
     end
 end)
 
@@ -1062,17 +1090,34 @@ MakeSection(PageConfig, "Управление")
 MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 180, 50), function()
     MyTeam = nil
     MyTeamColor = nil
+    CurrentTarget = nil
+    cachedTargetPlayer = nil
 end)
 
-MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), function()
+local function UnloadAll()
     Config.AimLock = false
     Config.AimHold = false
     Config.ESP = false
     pcall(function()
         RunService:UnbindFromRenderStep("ZepAimStep")
     end)
-    ScreenGui:Destroy()
+    pcall(ClearESP)
+    if marker then
+        pcall(function() marker:Destroy() end)
+        marker = nil
+    end
+    local myChar = plr.Character
+    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    if hum then hum.AutoRotate = true end
+    if ScreenGui then
+        pcall(function() ScreenGui:Destroy() end)
+        ScreenGui = nil
+    end
     _G.ZepHub_Loaded = false
+end
+
+MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), function()
+    UnloadAll()
 end)
 
 local FloatBtn = Instance.new("TextButton")
@@ -1161,7 +1206,13 @@ UIS.InputChanged:Connect(function(input)
     if dragF and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local d = input.Position - dragFS
         if math.abs(d.X) > 3 or math.abs(d.Y) > 3 then movedF = true end
-        FloatBtn.Position = UDim2.new(dragFP.X.Scale, dragFP.X.Offset + d.X, dragFP.Y.Scale, dragFP.Y.Offset + d.Y)
+        local newX = dragFP.X.Offset + d.X
+        local newY = dragFP.Y.Offset + d.Y
+        local vp = workspace.CurrentCamera.ViewportSize
+        local btnSize = FloatBtn.AbsoluteSize
+        newX = math.clamp(newX, -btnSize.X / 2, vp.X - btnSize.X / 2)
+        newY = math.clamp(newY, -btnSize.Y / 2, vp.Y - btnSize.Y / 2)
+        FloatBtn.Position = UDim2.new(dragFP.X.Scale, newX, dragFP.Y.Scale, newY)
     end
 end)
 
@@ -1170,10 +1221,14 @@ FloatBtn.MouseButton1Click:Connect(function()
     Main.Visible = not Main.Visible
 end)
 
-local dragM, dragMS, dragMP
+local dragM = false
+local dragMS, dragMP
+local dragMoved = false
+
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragM = true
+        dragMoved = false
         dragMS = input.Position
         dragMP = Main.Position
     end
@@ -1186,22 +1241,17 @@ end)
 UIS.InputChanged:Connect(function(input)
     if dragM and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local d = input.Position - dragMS
+        if math.abs(d.X) > 2 or math.abs(d.Y) > 2 then dragMoved = true end
         Main.Position = UDim2.new(dragMP.X.Scale, dragMP.X.Offset + d.X, dragMP.Y.Scale, dragMP.Y.Offset + d.Y)
     end
 end)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    Config.AimLock = false
-    Config.AimHold = false
-    pcall(function()
-        RunService:UnbindFromRenderStep("ZepAimStep")
-    end)
-    ScreenGui:Destroy()
-    _G.ZepHub_Loaded = false
-end)
-
 MinBtn.MouseButton1Click:Connect(function()
     Main.Visible = false
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    UnloadAll()
 end)
 
 print("Zep Hub Murder Duels loaded")
