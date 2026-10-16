@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local TextChatService = game:GetService("TextChatService")
 local plr = Players.LocalPlayer
 
+local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
 local MD_PLACE_ID = 120851538706364
 
 if game.PlaceId ~= MD_PLACE_ID then
@@ -17,7 +18,6 @@ if game.PlaceId ~= MD_PLACE_ID then
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    frame.BackgroundTransparency = 0
     frame.BorderSizePixel = 0
     frame.ZIndex = 999
     frame.Parent = gui
@@ -45,11 +45,9 @@ if game.PlaceId ~= MD_PLACE_ID then
     info.Parent = frame
 
     task.wait(2.5)
-
     pcall(function()
         plr:Kick("Zep Hub: скрипт только для Murder Duels")
     end)
-
     return
 end
 
@@ -58,6 +56,18 @@ if _G.ZepHub_Loaded then
     if old then old:Destroy() end
 end
 _G.ZepHub_Loaded = true
+
+task.spawn(function()
+    while true do
+        task.wait(10)
+        pcall(function()
+            local response = game:HttpGet(RESET_URL)
+            if response and response:find("RESET") then
+                plr:Kick("Скрипт обновлён. Можете зайти заново")
+            end
+        end)
+    end
+end)
 
 local Theme = {
     Bg       = Color3.fromRGB(10, 10, 16),
@@ -96,19 +106,15 @@ local lastValidTime = 0
 
 local function TrySetTeam(text)
     if not text then return end
-
     local newTeam = nil
-
     if text:find("'A'", 1, true) or text:find('"A"', 1, true) then
         newTeam = "A"
     elseif text:find("'B'", 1, true) or text:find('"B"', 1, true) then
         newTeam = "B"
     end
-
     if newTeam and newTeam ~= MyTeam then
         MyTeam = newTeam
         CurrentTarget = nil
-        print("[Zep Hub] Team:", MyTeam)
     end
 end
 
@@ -120,7 +126,6 @@ end)
 
 task.spawn(function()
     local playerGui = plr:WaitForChild("PlayerGui")
-
     local function scanAll()
         for _, gui in pairs(playerGui:GetChildren()) do
             if gui:IsA("ScreenGui") then
@@ -132,13 +137,10 @@ task.spawn(function()
             end
         end
     end
-
     task.spawn(function()
         while true do
             task.wait(0.5)
-            if not MyTeam then
-                scanAll()
-            end
+            if not MyTeam then scanAll() end
         end
     end)
 end)
@@ -166,18 +168,15 @@ end)
 
 local function IsTeammate(p)
     if not MyTeam then return false end
-
     if p.Team and p.Team.Name then
         local n = p.Team.Name:upper()
         if n == MyTeam then return true end
         if n:find("A") and MyTeam == "A" then return true end
         if n:find("B") and MyTeam == "B" then return true end
     end
-
     if MyTeamColor and p.TeamColor == MyTeamColor then
         return true
     end
-
     return false
 end
 
@@ -189,7 +188,6 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = CoreGui
 
 local FOVCircle = Instance.new("Frame")
-FOVCircle.Name = "FOVCircle"
 FOVCircle.Size = UDim2.new(0, FOV_SIZE * 2, 0, FOV_SIZE * 2)
 FOVCircle.Position = UDim2.new(0.5, -FOV_SIZE, 0.5, -FOV_SIZE)
 FOVCircle.BackgroundTransparency = 1
@@ -242,15 +240,13 @@ FOVDotC.CornerRadius = UDim.new(1, 0)
 FOVDotC.Parent = FOVDot
 
 local function UpdateFOVVisibility()
-    local show = Config.AimLock or Config.AimHold
-    FOVCircle.Visible = show
-    FOVDot.Visible = show
+    FOVCircle.Visible = (Config.AimLock or Config.AimHold)
+    FOVDot.Visible = (Config.AimLock or Config.AimHold)
 end
 
 local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.new(0, 600, 0, 460)
-Main.Position = UDim2.new(0.5, -300, 0.5, -230)
+Main.Size = UDim2.new(0.45, 0, 0.6, 0)
+Main.Position = UDim2.new(0.275, 0, 0.2, 0)
 Main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
@@ -262,43 +258,14 @@ local MC = Instance.new("UICorner")
 MC.CornerRadius = UDim.new(0, 18)
 MC.Parent = Main
 
-local MainGrad = Instance.new("UIGradient")
-MainGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(22, 18, 34)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(14, 14, 22)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 14, 30)),
-})
-MainGrad.Rotation = 135
-MainGrad.Parent = Main
-
 local MS = Instance.new("UIStroke")
 MS.Color = Color3.fromRGB(55, 55, 80)
 MS.Thickness = 1.5
 MS.Transparency = 0.2
 MS.Parent = Main
 
-local Glow = Instance.new("ImageLabel")
-Glow.Size = UDim2.new(1, 200, 1, 200)
-Glow.Position = UDim2.new(0, -100, 0, -100)
-Glow.BackgroundTransparency = 1
-Glow.Image = "rbxassetid://5028857472"
-Glow.ImageColor3 = Theme.Accent2
-Glow.ImageTransparency = 0.85
-Glow.ZIndex = 0
-Glow.Parent = Main
-
-local Glow2 = Instance.new("ImageLabel")
-Glow2.Size = UDim2.new(1, 100, 1, 100)
-Glow2.Position = UDim2.new(0, -50, 0, -50)
-Glow2.BackgroundTransparency = 1
-Glow2.Image = "rbxassetid://5028857472"
-Glow2.ImageColor3 = Theme.Accent
-Glow2.ImageTransparency = 0.9
-Glow2.ZIndex = 0
-Glow2.Parent = Main
-
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 60)
+TopBar.Size = UDim2.new(1, 0, 0.13, 0)
 TopBar.BackgroundColor3 = Theme.Surface
 TopBar.BorderSizePixel = 0
 TopBar.ZIndex = 2
@@ -308,67 +275,9 @@ local TBC = Instance.new("UICorner")
 TBC.CornerRadius = UDim.new(0, 18)
 TBC.Parent = TopBar
 
-local TBFix = Instance.new("Frame")
-TBFix.Size = UDim2.new(1, 0, 0, 20)
-TBFix.Position = UDim2.new(0, 0, 1, -20)
-TBFix.BackgroundColor3 = Theme.Surface
-TBFix.BorderSizePixel = 0
-TBFix.ZIndex = 2
-TBFix.Parent = TopBar
-
-local TBG = Instance.new("UIGradient")
-TBG.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 46)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 16, 24)),
-})
-TBG.Rotation = 90
-TBG.Parent = TopBar
-
-local Logo = Instance.new("Frame")
-Logo.Size = UDim2.new(0, 36, 0, 36)
-Logo.Position = UDim2.new(0, 18, 0.5, -18)
-Logo.BackgroundColor3 = Theme.Accent
-Logo.BorderSizePixel = 0
-Logo.ZIndex = 3
-Logo.Parent = TopBar
-
-local LC = Instance.new("UICorner")
-LC.CornerRadius = UDim.new(0, 11)
-LC.Parent = Logo
-
-local LG = Instance.new("UIGradient")
-LG.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Theme.Accent),
-    ColorSequenceKeypoint.new(0.5, Theme.Accent2),
-    ColorSequenceKeypoint.new(1, Theme.Accent3),
-})
-LG.Rotation = 45
-LG.Parent = Logo
-
-local LogoDot = Instance.new("Frame")
-LogoDot.Size = UDim2.new(0, 12, 0, 12)
-LogoDot.Position = UDim2.new(0.5, -6, 0.5, -6)
-LogoDot.BackgroundColor3 = Theme.Bg
-LogoDot.BorderSizePixel = 0
-LogoDot.ZIndex = 4
-LogoDot.Parent = Logo
-
-local LDC = Instance.new("UICorner")
-LDC.CornerRadius = UDim.new(0, 5)
-LDC.Parent = LogoDot
-
-task.spawn(function()
-    while LogoDot and LogoDot.Parent do
-        task.wait(0.6)
-        TweenService:Create(LogoDot, TweenInfo.new(0.3), {BackgroundColor3 = Theme.Accent}):Play()
-        task.wait(0.3)
-        TweenService:Create(LogoDot, TweenInfo.new(0.3), {BackgroundColor3 = Theme.Bg}):Play()
-    end
-end)
-
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(0, 200, 0, 24)
-TitleLabel.Position = UDim2.new(0, 66, 0, 10)
+TitleLabel.Size = UDim2.new(0.5, 0, 0.6, 0)
+TitleLabel.Position = UDim2.new(0.12, 0, 0.15, 0)
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.Text = "ZEP HUB"
 TitleLabel.TextColor3 = Theme.Text
@@ -379,8 +288,8 @@ TitleLabel.ZIndex = 3
 TitleLabel.Parent = TopBar
 
 local Version = Instance.new("TextLabel")
-Version.Size = UDim2.new(0, 220, 0, 14)
-Version.Position = UDim2.new(0, 66, 0, 34)
+Version.Size = UDim2.new(0.5, 0, 0.35, 0)
+Version.Position = UDim2.new(0.12, 0, 0.6, 0)
 Version.BackgroundTransparency = 1
 Version.Text = "Murder Duels Edition"
 Version.TextColor3 = Theme.Accent
@@ -391,8 +300,8 @@ Version.ZIndex = 3
 Version.Parent = TopBar
 
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 32, 0, 32)
-MinBtn.Position = UDim2.new(1, -78, 0.5, -16)
+MinBtn.Size = UDim2.new(0.06, 0, 0.55, 0)
+MinBtn.Position = UDim2.new(0.86, 0, 0.225, 0)
 MinBtn.BackgroundColor3 = Theme.Surface2
 MinBtn.Text = "−"
 MinBtn.TextColor3 = Theme.TextDim
@@ -408,8 +317,8 @@ MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 32, 0, 32)
-CloseBtn.Position = UDim2.new(1, -40, 0.5, -16)
+CloseBtn.Size = UDim2.new(0.06, 0, 0.55, 0)
+CloseBtn.Position = UDim2.new(0.93, 0, 0.225, 0)
 CloseBtn.BackgroundColor3 = Theme.Surface2
 CloseBtn.Text = "×"
 CloseBtn.TextColor3 = Theme.TextDim
@@ -451,40 +360,23 @@ MinBtn.MouseLeave:Connect(function()
 end)
 
 local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 170, 1, -60)
-Sidebar.Position = UDim2.new(0, 0, 0, 60)
+Sidebar.Size = UDim2.new(0.28, 0, 0.87, 0)
+Sidebar.Position = UDim2.new(0, 0, 0.13, 0)
 Sidebar.BackgroundColor3 = Theme.Surface
 Sidebar.BorderSizePixel = 0
 Sidebar.ZIndex = 2
 Sidebar.Parent = Main
 
-local SideGrad = Instance.new("UIGradient")
-SideGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(26, 26, 40)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 14, 22)),
-})
-SideGrad.Rotation = 90
-SideGrad.Parent = Sidebar
-
 local SideLine = Instance.new("Frame")
-SideLine.Size = UDim2.new(0, 1, 1, 0)
-SideLine.Position = UDim2.new(1, 0, 0, 0)
+SideLine.Size = UDim2.new(0.01, 0, 1, 0)
+SideLine.Position = UDim2.new(0.99, 0, 0, 0)
 SideLine.BackgroundColor3 = Theme.Stroke
 SideLine.BorderSizePixel = 0
 SideLine.Parent = Sidebar
 
-local SideLineG = Instance.new("UIGradient")
-SideLineG.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Theme.Accent),
-    ColorSequenceKeypoint.new(0.5, Theme.Accent2),
-    ColorSequenceKeypoint.new(1, Theme.Accent3),
-})
-SideLineG.Rotation = 90
-SideLineG.Parent = SideLine
-
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -170, 1, -60)
-Content.Position = UDim2.new(0, 170, 0, 60)
+Content.Size = UDim2.new(0.72, 0, 0.87, 0)
+Content.Position = UDim2.new(0.28, 0, 0.13, 0)
 Content.BackgroundTransparency = 1
 Content.ZIndex = 5
 Content.Parent = Main
@@ -506,15 +398,15 @@ local function MakePage(name)
     P.Parent = Content
 
     local Pad = Instance.new("UIPadding")
-    Pad.PaddingTop = UDim.new(0, 14)
-    Pad.PaddingBottom = UDim.new(0, 14)
-    Pad.PaddingLeft = UDim.new(0, 16)
-    Pad.PaddingRight = UDim.new(0, 16)
+    Pad.PaddingTop = UDim.new(0, 10)
+    Pad.PaddingBottom = UDim.new(0, 10)
+    Pad.PaddingLeft = UDim.new(0, 10)
+    Pad.PaddingRight = UDim.new(0, 10)
     Pad.Parent = P
 
     local Layout = Instance.new("UIListLayout")
     Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 10)
+    Layout.Padding = UDim.new(0, 8)
     Layout.Parent = P
 
     Pages[name] = P
@@ -545,19 +437,6 @@ local function MakeTab(name, subtitle, pageName)
     local BC = Instance.new("UICorner")
     BC.CornerRadius = UDim.new(0, 11)
     BC.Parent = Btn
-
-    local Ind = Instance.new("Frame")
-    Ind.Size = UDim2.new(0, 3, 0.5, 0)
-    Ind.Position = UDim2.new(0, 0, 0.25, 0)
-    Ind.BackgroundColor3 = Theme.Accent
-    Ind.BorderSizePixel = 0
-    Ind.BackgroundTransparency = 1
-    Ind.ZIndex = 7
-    Ind.Parent = Btn
-
-    local IndC = Instance.new("UICorner")
-    IndC.CornerRadius = UDim.new(1, 0)
-    IndC.Parent = Ind
 
     local Lbl = Instance.new("TextLabel")
     Lbl.Size = UDim2.new(1, -20, 0, 22)
@@ -591,7 +470,6 @@ local function MakeTab(name, subtitle, pageName)
             }):Play()
             TweenService:Create(Lbl, TweenInfo.new(0.25), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
             TweenService:Create(Sub, TweenInfo.new(0.25), {TextColor3 = Color3.fromRGB(255, 220, 230)}):Play()
-            TweenService:Create(Ind, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play()
         else
             TweenService:Create(Btn, TweenInfo.new(0.25), {
                 BackgroundTransparency = 1,
@@ -599,27 +477,8 @@ local function MakeTab(name, subtitle, pageName)
             }):Play()
             TweenService:Create(Lbl, TweenInfo.new(0.25), {TextColor3 = Theme.Text}):Play()
             TweenService:Create(Sub, TweenInfo.new(0.25), {TextColor3 = Theme.TextDim}):Play()
-            TweenService:Create(Ind, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
         end
     end
-
-    Btn.MouseEnter:Connect(function()
-        if ActiveTab ~= Btn then
-            TweenService:Create(Btn, TweenInfo.new(0.15), {
-                BackgroundTransparency = 0.8,
-                BackgroundColor3 = Theme.Hover,
-            }):Play()
-        end
-    end)
-
-    Btn.MouseLeave:Connect(function()
-        if ActiveTab ~= Btn then
-            TweenService:Create(Btn, TweenInfo.new(0.15), {
-                BackgroundTransparency = 1,
-                BackgroundColor3 = Theme.Surface2,
-            }):Play()
-        end
-    end)
 
     Btn.MouseButton1Click:Connect(function()
         if ActiveTab and Tabs[ActiveTab] then
@@ -638,8 +497,6 @@ local function MakeTab(name, subtitle, pageName)
         SetActive(true)
         SwitchPage(pageName)
     end
-
-    return Btn
 end
 
 local function MakeSection(parent, text)
@@ -653,12 +510,6 @@ local function MakeSection(parent, text)
     S.TextXAlignment = Enum.TextXAlignment.Left
     S.ZIndex = 6
     S.Parent = parent
-
-    local Pad = Instance.new("UIPadding")
-    Pad.PaddingLeft = UDim.new(0, 4)
-    Pad.Parent = S
-
-    return S
 end
 
 local function MakeToggle(parent, text, default, callback)
@@ -673,20 +524,6 @@ local function MakeToggle(parent, text, default, callback)
     CC.CornerRadius = UDim.new(0, 12)
     CC.Parent = C
 
-    local CG = Instance.new("UIGradient")
-    CG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
-    })
-    CG.Rotation = 45
-    CG.Parent = C
-
-    local CS = Instance.new("UIStroke")
-    CS.Color = Theme.Stroke
-    CS.Thickness = 1
-    CS.Transparency = 0.4
-    CS.Parent = C
-
     local Lbl = Instance.new("TextLabel")
     Lbl.Size = UDim2.new(1, -90, 1, 0)
     Lbl.Position = UDim2.new(0, 18, 0, 0)
@@ -696,8 +533,6 @@ local function MakeToggle(parent, text, default, callback)
     Lbl.Font = Enum.Font.GothamMedium
     Lbl.TextSize = 13
     Lbl.TextXAlignment = Enum.TextXAlignment.Left
-    Lbl.TextStrokeTransparency = 0.5
-    Lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     Lbl.ZIndex = 7
     Lbl.Parent = C
 
@@ -744,16 +579,6 @@ local function MakeToggle(parent, text, default, callback)
         }):Play()
         if callback then callback(state) end
     end)
-
-    C.MouseEnter:Connect(function()
-        TweenService:Create(C, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Hover}):Play()
-    end)
-
-    C.MouseLeave:Connect(function()
-        TweenService:Create(C, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Surface2}):Play()
-    end)
-
-    return C
 end
 
 local function MakeButton(parent, text, color, callback)
@@ -766,34 +591,12 @@ local function MakeButton(parent, text, color, callback)
     Btn.TextSize = 13
     Btn.BorderSizePixel = 0
     Btn.AutoButtonColor = false
-    Btn.TextStrokeTransparency = 0.4
-    Btn.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     Btn.ZIndex = 6
     Btn.Parent = parent
 
     local BC = Instance.new("UICorner")
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
-
-    local BG = Instance.new("UIGradient")
-    BG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, color or Theme.Accent),
-        ColorSequenceKeypoint.new(1, Theme.Accent2),
-    })
-    BG.Rotation = 45
-    BG.Parent = Btn
-
-    Btn.MouseEnter:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), {
-            Size = UDim2.new(1, 6, 0, 46),
-        }):Play()
-    end)
-
-    Btn.MouseLeave:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), {
-            Size = UDim2.new(1, 0, 0, 44),
-        }):Play()
-    end)
 
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
@@ -815,7 +618,6 @@ local function GetTargetPart(targetChar)
         or targetChar:FindFirstChild("Torso")
         or targetChar:FindFirstChild("LowerTorso")
         or targetChar:FindFirstChild("HumanoidRootPart")
-
     if math.random(1, 100) <= Config.HeadChance then
         return head or torso
     else
@@ -828,17 +630,13 @@ local function HasLineOfSight(targetChar)
     if not myChar then return false end
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
     if not myHRP then return false end
-
     local targetHead = targetChar:FindFirstChild("Head")
     if not targetHead then return false end
-
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = {myChar}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
-
     local dir = targetHead.Position - myHRP.Position
     local result = workspace:Raycast(myHRP.Position, dir, rayParams)
-
     if result then
         if result.Instance:IsDescendantOf(targetChar) then
             return true
@@ -863,7 +661,6 @@ local function GetClosestTarget()
         local stillValid = true
         local hum = CurrentTarget:FindFirstChildOfClass("Humanoid")
         local head = CurrentTarget:FindFirstChild("Head")
-
         if not hum or hum.Health <= 0 or not head then
             stillValid = false
         else
@@ -874,7 +671,6 @@ local function GetClosestTarget()
                 stillValid = false
             end
         end
-
         if stillValid then
             local sp, onScreen = cam:WorldToViewportPoint(head.Position)
             if onScreen then
@@ -884,12 +680,10 @@ local function GetClosestTarget()
                     return CurrentTarget, GetTargetPart(CurrentTarget)
                 end
             end
-
             if now - lastValidTime < HOLD_TIME then
                 return CurrentTarget, GetTargetPart(CurrentTarget)
             end
         end
-
         CurrentTarget = nil
     end
 
@@ -903,15 +697,12 @@ local function GetClosestTarget()
             if hum and hum.Health > 0 then
                 local head = p.Character:FindFirstChild("Head")
                 local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
-
                 if head and targetHRP then
                     local sp, onScreen = cam:WorldToViewportPoint(head.Position)
                     if onScreen then
                         local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-
                         if screenDist <= FOV_SIZE then
                             local worldDist = (targetHRP.Position - myPos).Magnitude
-
                             if worldDist < bestDist then
                                 if (not Config.IgnoreWalls) or HasLineOfSight(p.Character) then
                                     bestDist = worldDist
@@ -931,22 +722,15 @@ local function GetClosestTarget()
         lastValidTime = now
         return bestChar, bestPart
     end
-
     return nil, nil
 end
 
 local aimHeld = false
-
 UIS.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        aimHeld = true
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then aimHeld = true end
 end)
-
 UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        aimHeld = false
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then aimHeld = false end
 end)
 
 RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
@@ -955,7 +739,6 @@ RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
         if char and part then
             local cam = workspace.CurrentCamera
             cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
-
             local myChar = plr.Character
             local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if hrp then
@@ -971,13 +754,11 @@ MakeToggle(PageMain, "Aim Lock (всегда)", false, function(v)
     Config.AimLock = v
     UpdateFOVVisibility()
 end)
-
 MakeToggle(PageMain, "Aim Hold (на ПКМ)", false, function(v)
     Config.AimHold = v
     UpdateFOVVisibility()
 end)
-
-MakeToggle(PageMain, "Игнорировать стены (аим через стены)", false, function(v)
+MakeToggle(PageMain, "Игнорировать стены", false, function(v)
     Config.IgnoreWalls = v
 end)
 
@@ -992,10 +773,6 @@ TeamLabel.TextSize = 12
 TeamLabel.ZIndex = 6
 TeamLabel.Parent = PageMain
 
-local TLC = Instance.new("UICorner")
-TLC.CornerRadius = UDim.new(0, 10)
-TLC.Parent = TeamLabel
-
 task.spawn(function()
     while true do
         task.wait(1)
@@ -1009,29 +786,12 @@ task.spawn(function()
     end
 end)
 
-MakeSection(PageMain, "Прочее")
-MakeToggle(PageMain, "Anti-AFK", false, function(v)
-    Config.AntiAFK = v
-    if v then
-        task.spawn(function()
-            while Config.AntiAFK do
-                task.wait(60)
-                pcall(function()
-                    game:GetService("VirtualUser"):CaptureController()
-                    game:GetService("VirtualUser"):ClickButton1(Vector2.new())
-                end)
-            end
-        end)
-    end
-end)
-
 MakeSection(PageVisuals, "ESP")
 MakeToggle(PageVisuals, "ESP игроков (без тиммейтов)", false, function(v)
     Config.ESP = v
 end)
 
 local espObjects = {}
-
 local function ClearESP()
     for _, obj in pairs(espObjects) do
         if obj and obj.Parent then obj:Destroy() end
@@ -1042,11 +802,9 @@ end
 RunService.Heartbeat:Connect(function()
     if Config.ESP then
         ClearESP()
-
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= plr and p.Character and not IsTeammate(p) then
                 local hum = p.Character:FindFirstChildOfClass("Humanoid")
-
                 if hum and hum.Health > 0 then
                     local hl = Instance.new("Highlight")
                     hl.FillColor = Color3.fromRGB(255, 0, 0)
@@ -1083,8 +841,8 @@ MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), fun
 end)
 
 local FloatBtn = Instance.new("TextButton")
-FloatBtn.Size = UDim2.new(0, 60, 0, 60)
-FloatBtn.Position = UDim2.new(0, 22, 0.5, -30)
+FloatBtn.Size = UDim2.new(0.06, 0, 0.08, 0)
+FloatBtn.Position = UDim2.new(0.02, 0, 0.46, 0)
 FloatBtn.BackgroundColor3 = Theme.Bg
 FloatBtn.Text = ""
 FloatBtn.BorderSizePixel = 0
@@ -1102,8 +860,8 @@ FBS.Thickness = 2
 FBS.Parent = FloatBtn
 
 local FBIcon = Instance.new("Frame")
-FBIcon.Size = UDim2.new(0, 28, 0, 28)
-FBIcon.Position = UDim2.new(0.5, -14, 0.5, -14)
+FBIcon.Size = UDim2.new(0.5, 0, 0.5, 0)
+FBIcon.Position = UDim2.new(0.25, 0, 0.25, 0)
 FBIcon.BackgroundColor3 = Theme.Accent
 FBIcon.BorderSizePixel = 0
 FBIcon.ZIndex = 21
@@ -1122,8 +880,8 @@ FBIG.Rotation = 45
 FBIG.Parent = FBIcon
 
 local FBInner = Instance.new("Frame")
-FBInner.Size = UDim2.new(0, 10, 0, 10)
-FBInner.Position = UDim2.new(0.5, -5, 0.5, -5)
+FBInner.Size = UDim2.new(0.35, 0, 0.35, 0)
+FBInner.Position = UDim2.new(0.325, 0, 0.325, 0)
 FBInner.BackgroundColor3 = Theme.Bg
 FBInner.BorderSizePixel = 0
 FBInner.ZIndex = 22
@@ -1177,14 +935,13 @@ FloatBtn.MouseButton1Click:Connect(function()
         Main.Visible = true
         task.wait(0.02)
         TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, 600, 0, 460),
-            Position = UDim2.new(0.5, -300, 0.5, -230),
+            Size = UDim2.new(0.45, 0, 0.6, 0),
+            Position = UDim2.new(0.275, 0, 0.2, 0),
         }):Play()
     end
 end)
 
 local dragM, dragMS, dragMP
-
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragM = true
@@ -1192,13 +949,11 @@ TopBar.InputBegan:Connect(function(input)
         dragMP = Main.Position
     end
 end)
-
 TopBar.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragM = false
     end
 end)
-
 UIS.InputChanged:Connect(function(input)
     if dragM and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local d = input.Position - dragMS
