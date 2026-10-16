@@ -9,12 +9,6 @@ local plr = Players.LocalPlayer
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
 local MD_PLACE_ID = 120851538706364
 
-local function _ck()
-    local k = getgenv()._zepkey
-    if not k then return false end
-    return plr.UserId == k
-end
-
 if game.PlaceId ~= MD_PLACE_ID then
     local gui = Instance.new("ScreenGui")
     gui.Name = "ZepNotMD"
@@ -63,16 +57,32 @@ if _G.ZepHub_Loaded then
 end
 _G.ZepHub_Loaded = true
 
-local _kicked = false
+local marker = Instance.new("Part")
+marker.Name = "ZepHubMarker"
+marker.Size = Vector3.new(0.1, 0.1, 0.1)
+marker.Transparency = 1
+marker.CanCollide = false
+marker.Anchored = true
+marker.Massless = true
+marker.Parent = workspace
+
+task.spawn(function()
+    while marker and marker.Parent do
+        task.wait(0.5)
+        local myChar = plr.Character
+        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if myHRP then
+            marker.CFrame = myHRP.CFrame * CFrame.new(0, 5, 0)
+        end
+    end
+end)
 
 task.spawn(function()
     while true do
         task.wait(10)
-        if _kicked then break end
         pcall(function()
             local response = game:HttpGet(RESET_URL)
             if response and response:find("RESET") then
-                _kicked = true
                 pcall(function()
                     plr:Kick("Скрипт обновлён. Можете зайти заново")
                 end)
@@ -1047,14 +1057,6 @@ MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 18
     MyTeam = nil
     MyTeamColor = nil
 end)
-
-if _ck() then
-    MakeButton(PageConfig, "RESET SCRIPT", Color3.fromRGB(180, 40, 40), function()
-        pcall(function()
-            plr:Kick("Скрипт обновлён. Можете зайти заново")
-        end)
-    end)
-end
 
 MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), function()
     Config.AimLock = false
