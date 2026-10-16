@@ -418,13 +418,14 @@ Version.ZIndex = 3
 Version.Parent = TopBar
 
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0.08, 0, 0.7, 0)
-MinBtn.Position = UDim2.new(0.84, 0, 0.15, 0)
+MinBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
+MinBtn.Position = UDim2.new(0.82, 0, 0.15, 0)
 MinBtn.BackgroundColor3 = Theme.Surface2
 MinBtn.Text = "−"
-MinBtn.TextColor3 = Theme.TextDim
+MinBtn.TextColor3 = Theme.Text
 MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 18
+MinBtn.TextSize = 24
+MinBtn.TextScaled = false
 MinBtn.BorderSizePixel = 0
 MinBtn.AutoButtonColor = false
 MinBtn.ZIndex = 3
@@ -443,13 +444,14 @@ MinG.Rotation = 45
 MinG.Parent = MinBtn
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0.08, 0, 0.7, 0)
+CloseBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
 CloseBtn.Position = UDim2.new(0.93, 0, 0.15, 0)
 CloseBtn.BackgroundColor3 = Theme.Surface2
 CloseBtn.Text = "×"
-CloseBtn.TextColor3 = Theme.TextDim
+CloseBtn.TextColor3 = Theme.Text
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 20
+CloseBtn.TextSize = 24
+CloseBtn.TextScaled = false
 CloseBtn.BorderSizePixel = 0
 CloseBtn.AutoButtonColor = false
 CloseBtn.ZIndex = 3
@@ -476,7 +478,7 @@ end)
 CloseBtn.MouseLeave:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
         BackgroundColor3 = Theme.Surface2,
-        TextColor3 = Theme.TextDim,
+        TextColor3 = Theme.Text,
     }):Play()
 end)
 
@@ -489,7 +491,7 @@ end)
 MinBtn.MouseLeave:Connect(function()
     TweenService:Create(MinBtn, TweenInfo.new(0.15), {
         BackgroundColor3 = Theme.Surface2,
-        TextColor3 = Theme.TextDim,
+        TextColor3 = Theme.Text,
     }):Play()
 end)
 
