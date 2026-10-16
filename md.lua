@@ -245,8 +245,8 @@ local function UpdateFOVVisibility()
 end
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0.45, 0, 0.6, 0)
-Main.Position = UDim2.new(0.275, 0, 0.2, 0)
+Main.Size = UDim2.new(0.55, 0, 0.7, 0)
+Main.Position = UDim2.new(0.225, 0, 0.15, 0)
 Main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
@@ -1010,14 +1010,18 @@ MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), fun
 end)
 
 local FloatBtn = Instance.new("TextButton")
-FloatBtn.Size = UDim2.new(0.06, 0, 0.08, 0)
-FloatBtn.Position = UDim2.new(0.02, 0, 0.46, 0)
+FloatBtn.Size = UDim2.new(0.08, 0, 0.1, 0)
+FloatBtn.Position = UDim2.new(0.02, 0, 0.45, 0)
 FloatBtn.BackgroundColor3 = Theme.Bg
 FloatBtn.Text = ""
 FloatBtn.BorderSizePixel = 0
 FloatBtn.AutoButtonColor = false
 FloatBtn.ZIndex = 20
 FloatBtn.Parent = ScreenGui
+
+local FBAspect = Instance.new("UIAspectRatioConstraint")
+FBAspect.AspectRatio = 1
+FBAspect.Parent = FloatBtn
 
 local FBC = Instance.new("UICorner")
 FBC.CornerRadius = UDim.new(1, 0)
@@ -1089,11 +1093,7 @@ end)
 
 FloatBtn.MouseButton1Click:Connect(function()
     if movedF then return end
-    if Main.Visible then
-        Main.Visible = false
-    else
-        Main.Visible = true
-    end
+    Main.Visible = not Main.Visible
 end)
 
 local dragM, dragMS, dragMP
