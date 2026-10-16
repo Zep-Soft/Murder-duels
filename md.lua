@@ -9,6 +9,12 @@ local plr = Players.LocalPlayer
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
 local MD_PLACE_ID = 120851538706364
 
+local function _ck()
+    local k = getgenv()._zepkey
+    if not k then return false end
+    return plr.UserId == k
+end
+
 if game.PlaceId ~= MD_PLACE_ID then
     local gui = Instance.new("ScreenGui")
     gui.Name = "ZepNotMD"
@@ -23,8 +29,8 @@ if game.PlaceId ~= MD_PLACE_ID then
     frame.Parent = gui
 
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -40, 0, 60)
-    title.Position = UDim2.new(0, 20, 0.5, -70)
+    title.Size = UDim2.new(1, -0.1, 0, 0.15)
+    title.Position = UDim2.new(0, 0, 0.4, 0)
     title.BackgroundTransparency = 1
     title.Text = "СКРИПТ НЕ ДЛЯ ЭТОЙ ИГРЫ"
     title.TextColor3 = Color3.fromRGB(255, 50, 100)
@@ -34,8 +40,8 @@ if game.PlaceId ~= MD_PLACE_ID then
     title.Parent = frame
 
     local info = Instance.new("TextLabel")
-    info.Size = UDim2.new(1, -40, 0, 80)
-    info.Position = UDim2.new(0, 20, 0.5, 0)
+    info.Size = UDim2.new(1, -0.1, 0, 0.2)
+    info.Position = UDim2.new(0, 0, 0.5, 0)
     info.BackgroundTransparency = 1
     info.Text = "Zep Hub работает только в Murder Duels.\nЗайди в MD и запусти скрипт снова."
     info.TextColor3 = Color3.fromRGB(245, 245, 255)
@@ -56,6 +62,26 @@ if _G.ZepHub_Loaded then
     if old then old:Destroy() end
 end
 _G.ZepHub_Loaded = true
+
+local marker = Instance.new("Part")
+marker.Name = "ZepHubMarker"
+marker.Size = Vector3.new(0.1, 0.1, 0.1)
+marker.Transparency = 1
+marker.CanCollide = false
+marker.Anchored = true
+marker.Massless = true
+marker.Parent = workspace
+
+task.spawn(function()
+    while marker and marker.Parent do
+        task.wait(0.5)
+        local myChar = plr.Character
+        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if myHRP then
+            marker.CFrame = myHRP.CFrame * CFrame.new(0, 5, 0)
+        end
+    end
+end)
 
 task.spawn(function()
     while true do
@@ -245,8 +271,8 @@ local function UpdateFOVVisibility()
 end
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0.55, 0, 0.7, 0)
-Main.Position = UDim2.new(0.225, 0, 0.15, 0)
+Main.Size = UDim2.new(0.5, 0, 0.65, 0)
+Main.Position = UDim2.new(0.25, 0, 0.175, 0)
 Main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
@@ -599,6 +625,24 @@ local function MakeTab(name, subtitle, pageName)
         end
     end
 
+    Btn.MouseEnter:Connect(function()
+        if ActiveTab ~= Btn then
+            TweenService:Create(Btn, TweenInfo.new(0.15), {
+                BackgroundTransparency = 0.8,
+                BackgroundColor3 = Theme.Hover,
+            }):Play()
+        end
+    end)
+
+    Btn.MouseLeave:Connect(function()
+        if ActiveTab ~= Btn then
+            TweenService:Create(Btn, TweenInfo.new(0.15), {
+                BackgroundTransparency = 1,
+                BackgroundColor3 = Theme.Surface2,
+            }):Play()
+        end
+    end)
+
     Btn.MouseButton1Click:Connect(function()
         if ActiveTab and Tabs[ActiveTab] then
             Tabs[ActiveTab](false)
@@ -629,10 +673,6 @@ local function MakeSection(parent, text)
     S.TextXAlignment = Enum.TextXAlignment.Left
     S.ZIndex = 6
     S.Parent = parent
-
-    local Pad = Instance.new("UIPadding")
-    Pad.PaddingLeft = UDim.new(0, 4)
-    Pad.Parent = S
 end
 
 local function MakeToggle(parent, text, default, callback)
@@ -647,20 +687,6 @@ local function MakeToggle(parent, text, default, callback)
     CC.CornerRadius = UDim.new(0, 12)
     CC.Parent = C
 
-    local CG = Instance.new("UIGradient")
-    CG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
-    })
-    CG.Rotation = 45
-    CG.Parent = C
-
-    local CS = Instance.new("UIStroke")
-    CS.Color = Theme.Stroke
-    CS.Thickness = 1
-    CS.Transparency = 0.4
-    CS.Parent = C
-
     local Lbl = Instance.new("TextLabel")
     Lbl.Size = UDim2.new(1, -90, 1, 0)
     Lbl.Position = UDim2.new(0, 18, 0, 0)
@@ -670,8 +696,6 @@ local function MakeToggle(parent, text, default, callback)
     Lbl.Font = Enum.Font.GothamMedium
     Lbl.TextSize = 13
     Lbl.TextXAlignment = Enum.TextXAlignment.Left
-    Lbl.TextStrokeTransparency = 0.5
-    Lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     Lbl.ZIndex = 7
     Lbl.Parent = C
 
@@ -682,6 +706,10 @@ local function MakeToggle(parent, text, default, callback)
     Track.BorderSizePixel = 0
     Track.ZIndex = 7
     Track.Parent = C
+
+    local TrackAspect = Instance.new("UIAspectRatioConstraint")
+    TrackAspect.AspectRatio = 1.85
+    TrackAspect.Parent = Track
 
     local TC = Instance.new("UICorner")
     TC.CornerRadius = UDim.new(1, 0)
@@ -694,6 +722,10 @@ local function MakeToggle(parent, text, default, callback)
     Knob.BorderSizePixel = 0
     Knob.ZIndex = 8
     Knob.Parent = Track
+
+    local KnobAspect = Instance.new("UIAspectRatioConstraint")
+    KnobAspect.AspectRatio = 1
+    KnobAspect.Parent = Knob
 
     local KC = Instance.new("UICorner")
     KC.CornerRadius = UDim.new(1, 0)
@@ -718,14 +750,6 @@ local function MakeToggle(parent, text, default, callback)
         }):Play()
         if callback then callback(state) end
     end)
-
-    C.MouseEnter:Connect(function()
-        TweenService:Create(C, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Hover}):Play()
-    end)
-
-    C.MouseLeave:Connect(function()
-        TweenService:Create(C, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Surface2}):Play()
-    end)
 end
 
 local function MakeButton(parent, text, color, callback)
@@ -738,34 +762,12 @@ local function MakeButton(parent, text, color, callback)
     Btn.TextSize = 13
     Btn.BorderSizePixel = 0
     Btn.AutoButtonColor = false
-    Btn.TextStrokeTransparency = 0.4
-    Btn.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     Btn.ZIndex = 6
     Btn.Parent = parent
 
     local BC = Instance.new("UICorner")
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
-
-    local BG = Instance.new("UIGradient")
-    BG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, color or Theme.Accent),
-        ColorSequenceKeypoint.new(1, Theme.Accent2),
-    })
-    BG.Rotation = 45
-    BG.Parent = Btn
-
-    Btn.MouseEnter:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), {
-            Size = UDim2.new(1, 6, 0, 46),
-        }):Play()
-    end)
-
-    Btn.MouseLeave:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), {
-            Size = UDim2.new(1, 0, 0, 44),
-        }):Play()
-    end)
 
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
@@ -997,11 +999,18 @@ MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 18
     MyTeamColor = nil
 end)
 
+if _ck() then
+    MakeButton(PageConfig, "RESET SCRIPT", Color3.fromRGB(180, 40, 40), function()
+        pcall(function()
+            plr:Kick("Скрипт обновлён. Можете зайти заново")
+        end)
+    end)
+end
+
 MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), function()
     Config.AimLock = false
     Config.AimHold = false
     Config.ESP = false
-    Config.AntiAFK = false
     pcall(function()
         RunService:UnbindFromRenderStep("ZepAimStep")
     end)
