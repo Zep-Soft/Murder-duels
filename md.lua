@@ -108,7 +108,8 @@ local matchData = {
     playersA = {},
     playersB = {},
     playersLobby = {},
-    lastSeen = {},
+    knownA = {},
+    knownB = {},
     leftIds = {},
     updatedAt = 0,
 }
@@ -262,6 +263,8 @@ end)
 
 local function IsTeammate(p)
     if not MyTeam or MyTeam == "Lobby" then return false end
+    if matchData.knownA[p.UserId] and MyTeam == "A" then return true end
+    if matchData.knownB[p.UserId] and MyTeam == "B" then return true end
     if p.Team and p.Team.Name then
         local n = p.Team.Name:upper()
         if n == MyTeam then return true end
@@ -269,9 +272,6 @@ local function IsTeammate(p)
         if n:find("B") and MyTeam == "B" then return true end
     end
     if MyTeamColor and p.TeamColor == MyTeamColor then
-        return true
-    end
-    if matchData.lastSeen[p.UserId] == MyTeam then
         return true
     end
     return false
@@ -495,13 +495,10 @@ local function parseStatsFromGui()
                     end
 
                     local side = nil
-                    local teamName = player.Team and player.Team.Name or ""
-                    if teamName == "A" or teamName:find("A") then
+                    if matchData.knownA[userId] then
                         side = "A"
-                    elseif teamName == "B" or teamName:find("B") then
+                    elseif matchData.knownB[userId] then
                         side = "B"
-                    elseif matchData.lastSeen[userId] then
-                        side = matchData.lastSeen[userId]
                     else
                         side = "Lobby"
                     end
@@ -518,19 +515,6 @@ local function parseStatsFromGui()
                 end
             end
         end
-    end
-
-    for userId, _ in pairs(matchData.lastSeen) do
-        if not presentIds[userId] then
-            matchData.leftIds[userId] = true
-        end
-    end
-
-    for _, e in ipairs(newA) do
-        matchData.lastSeen[e.userId] = "A"
-    end
-    for _, e in ipairs(newB) do
-        matchData.lastSeen[e.userId] = "B"
     end
 
     matchData.playersA = newA
@@ -557,10 +541,8 @@ task.spawn(function()
         if type(payload) ~= "table" then return end
 
         if payload.t == "MatchStarted" then
-            matchData.playersA = {}
-            matchData.playersB = {}
-            matchData.playersLobby = {}
-            matchData.lastSeen = {}
+            matchData.knownA = {}
+            matchData.knownB = {}
             matchData.leftIds = {}
         end
 
@@ -569,29 +551,12 @@ task.spawn(function()
                 if type(list) ~= "table" then return end
                 for _, p in pairs(list) do
                     if type(p) == "table" and p.UserId then
-                        local entry = {
-                            userId = p.UserId,
-                            name = p.DisplayName or p.Name or "?",
-                            username = p.Name or "?",
-                            streak = p.WinStreak or 0,
-                            level = p.Level or 0,
-                            kd = "",
-                            side = side,
-                        }
-                        matchData.lastSeen[p.UserId] = side
-
-                        local list_ = side == "A" and matchData.playersA or matchData.playersB
-                        local found = false
-                        for i, e in ipairs(list_) do
-                            if e.userId == entry.userId then
-                                entry.kd = e.kd
-                                list_[i] = entry
-                                found = true
-                                break
-                            end
-                        end
-                        if not found then
-                            table.insert(list_, entry)
+                        if side == "A" then
+                            matchData.knownA[p.UserId] = true
+                            matchData.knownB[p.UserId] = nil
+                        else
+                            matchData.knownB[p.UserId] = true
+                            matchData.knownA[p.UserId] = nil
                         end
                     end
                 end
@@ -785,23 +750,13 @@ local function buildStatsOverlay()
     return overlay
 end
 
-local function isAlive(userId)
-    local p = Players:GetPlayerByUserId(userId)
-    if not p then return false end
-    local char = p.Character
-    if not char then return false end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return false end
-    return hum.Health > 0
-end
-
 local function getHealth(userId)
     local p = Players:GetPlayerByUserId(userId)
-    if not p then return 0 end
+    if not p then return -1 end
     local char = p.Character
-    if not char then return 0 end
+    if not char then return -1 end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return 0 end
+    if not hum then return -1 end
     return hum.Health
 end
 
@@ -909,7 +864,7 @@ local function makeRow(parent, entry, isMe, side)
         local hp = getHealth(entry.userId)
         if hp <= 0 then
             applyStamp(row, "200", Color3.fromRGB(255, 40, 60), 0)
-        elseif hp < 50 then
+        elseif hp > 0 and hp < 50 then
             applyStamp(row, "100", Color3.fromRGB(255, 180, 40), 0.25)
         end
     end
