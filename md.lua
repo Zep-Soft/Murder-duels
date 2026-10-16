@@ -76,6 +76,10 @@ local Theme = {
     Gold     = Color3.fromRGB(255, 200, 60),
     Purple   = Color3.fromRGB(180, 100, 255),
     Blue     = Color3.fromRGB(90, 180, 255),
+    Lobby    = Color3.fromRGB(160, 160, 180),
+    Dead     = Color3.fromRGB(255, 40, 60),
+    Wound    = Color3.fromRGB(255, 180, 40),
+    Left     = Color3.fromRGB(110, 110, 130),
 }
 
 local FOV_SIZE = 150
@@ -103,6 +107,9 @@ local HOP_COOLDOWN = 5
 local matchData = {
     playersA = {},
     playersB = {},
+    playersLobby = {},
+    lastSeen = {},
+    leftIds = {},
     updatedAt = 0,
 }
 
@@ -179,18 +186,21 @@ if plr.Character then
     if hrp then SetupBodyRotation(hrp) end
 end
 
+local function ParseTeamFromText(text)
+    if not text then return nil end
+    if text:find("'Lobby'", 1, true) then return "Lobby" end
+    if text:find("'A'", 1, true) then return "A" end
+    if text:find("'B'", 1, true) then return "B" end
+    return nil
+end
+
 local function TrySetTeam(text)
-    if not text then return end
-    local newTeam = nil
-    if text:find("'A'", 1, true) or text:find('"A"', 1, true) then
-        newTeam = "A"
-    elseif text:find("'B'", 1, true) or text:find('"B"', 1, true) then
-        newTeam = "B"
-    end
+    local newTeam = ParseTeamFromText(text)
     if newTeam and newTeam ~= MyTeam then
         MyTeam = newTeam
         CurrentTarget = nil
         cachedTargetPlayer = nil
+        UpdateFOVVisibility()
     end
 end
 
@@ -204,7 +214,7 @@ local function ScanPlayerGuiForTeam()
     local playerGui = plr:FindFirstChildOfClass("PlayerGui")
     if not playerGui then return end
     for _, gui in pairs(playerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
+        if gui:IsA("ScreenGui") and gui.Name ~= "ZepHubUI" then
             for _, obj in pairs(gui:GetDescendants()) do
                 if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
                     TrySetTeam(obj.Text)
@@ -216,7 +226,7 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(1)
         if not MyTeam then ScanPlayerGuiForTeam() end
     end
 end)
@@ -229,12 +239,14 @@ local function UpdateTeamFromRoblox()
                 MyTeam = "A"
                 CurrentTarget = nil
                 cachedTargetPlayer = nil
+                UpdateFOVVisibility()
             end
         elseif n == "B" or n:find("B") then
             if MyTeam ~= "B" then
                 MyTeam = "B"
                 CurrentTarget = nil
                 cachedTargetPlayer = nil
+                UpdateFOVVisibility()
             end
         end
         MyTeamColor = plr.TeamColor
@@ -249,7 +261,7 @@ task.spawn(function()
 end)
 
 local function IsTeammate(p)
-    if not MyTeam then return false end
+    if not MyTeam or MyTeam == "Lobby" then return false end
     if p.Team and p.Team.Name then
         local n = p.Team.Name:upper()
         if n == MyTeam then return true end
@@ -259,7 +271,14 @@ local function IsTeammate(p)
     if MyTeamColor and p.TeamColor == MyTeamColor then
         return true
     end
+    if matchData.lastSeen[p.UserId] == MyTeam then
+        return true
+    end
     return false
+end
+
+local function AmIReady()
+    return MyTeam ~= nil and MyTeam ~= "Lobby"
 end
 
 task.spawn(function()
@@ -391,13 +410,8 @@ FOVDotC.CornerRadius = UDim.new(1, 0)
 FOVDotC.Parent = FOVDot
 
 local function UpdateFOVVisibility()
-    FOVCircle.Visible = Config.AimLock
-    FOVDot.Visible = Config.AimLock
-end
-
-local function fmtStreak(n)
-    if not n or n == 0 then return "0" end
-    return tostring(n)
+    FOVCircle.Visible = Config.AimLock and AmIReady()
+    FOVDot.Visible = Config.AimLock and AmIReady()
 end
 
 local function streakColor(n)
@@ -408,27 +422,33 @@ local function streakColor(n)
     return Color3.fromRGB(150, 150, 170)
 end
 
-local function parseStatsFromGui()
+local function getLeaderboard()
     local pg = plr:FindFirstChildOfClass("PlayerGui")
-    if not pg then return end
+    if not pg then return nil end
     local hud = pg:FindFirstChild("HUD")
-    if not hud then return end
-    local leaderboard = nil
+    if not hud then return nil end
     for _, d in ipairs(hud:GetDescendants()) do
         if d.Name == "PlayerContainer" and d:IsA("ScrollingFrame") then
-            leaderboard = d
-            break
+            return d
         end
     end
+    return nil
+end
+
+local function parseStatsFromGui()
+    local leaderboard = getLeaderboard()
     if not leaderboard then return end
 
+    local presentIds = {}
     local newA = {}
     local newB = {}
+    local newLobby = {}
 
     for _, row in ipairs(leaderboard:GetChildren()) do
         if row:IsA("TextButton") and row.Name:match("^UserFrame_%d+$") then
             local userId = tonumber(row.Name:match("^UserFrame_(%d+)$"))
             if userId then
+                presentIds[userId] = true
                 local player = Players:GetPlayerByUserId(userId)
                 if player then
                     local identifier = ""
@@ -472,36 +492,50 @@ local function parseStatsFromGui()
                     if cached then
                         entry.streak = cached.streak
                         entry.level = cached.level
-                        entry.side = cached.side
                     end
 
-                    local team = player.Team
-                    local teamName = team and team.Name or ""
+                    local side = nil
+                    local teamName = player.Team and player.Team.Name or ""
                     if teamName == "A" or teamName:find("A") then
-                        entry.side = "A"
-                        table.insert(newA, entry)
+                        side = "A"
                     elseif teamName == "B" or teamName:find("B") then
-                        entry.side = "B"
+                        side = "B"
+                    elseif matchData.lastSeen[userId] then
+                        side = matchData.lastSeen[userId]
+                    else
+                        side = "Lobby"
+                    end
+
+                    entry.side = side
+
+                    if side == "A" then
+                        table.insert(newA, entry)
+                    elseif side == "B" then
                         table.insert(newB, entry)
                     else
-                        if MyTeam == "A" then
-                            entry.side = "A"
-                            table.insert(newA, entry)
-                        elseif MyTeam == "B" then
-                            entry.side = "B"
-                            table.insert(newB, entry)
-                        else
-                            entry.side = "A"
-                            table.insert(newA, entry)
-                        end
+                        table.insert(newLobby, entry)
                     end
                 end
             end
         end
     end
 
+    for userId, _ in pairs(matchData.lastSeen) do
+        if not presentIds[userId] then
+            matchData.leftIds[userId] = true
+        end
+    end
+
+    for _, e in ipairs(newA) do
+        matchData.lastSeen[e.userId] = "A"
+    end
+    for _, e in ipairs(newB) do
+        matchData.lastSeen[e.userId] = "B"
+    end
+
     matchData.playersA = newA
     matchData.playersB = newB
+    matchData.playersLobby = newLobby
     matchData.updatedAt = tick()
 end
 
@@ -509,13 +543,6 @@ task.spawn(function()
     while true do
         task.wait(0.5)
         pcall(parseStatsFromGui)
-    end
-end)
-
-task.spawn(function()
-    for _, obj in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-        if obj:IsA("RemoteEvent") and obj.Name == "MatchRemotesState" or obj.Name == "State" then
-        end
     end
 end)
 
@@ -528,54 +555,43 @@ task.spawn(function()
 
     state.OnClientEvent:Connect(function(_, payload)
         if type(payload) ~= "table" then return end
+
+        if payload.t == "MatchStarted" then
+            matchData.playersA = {}
+            matchData.playersB = {}
+            matchData.playersLobby = {}
+            matchData.lastSeen = {}
+            matchData.leftIds = {}
+        end
+
         if payload.t == "MatchEnded" then
             local function store(list, side)
                 if type(list) ~= "table" then return end
                 for _, p in pairs(list) do
                     if type(p) == "table" and p.UserId then
-                        local cached = nil
-                        for _, e in ipairs(matchData.playersA) do
-                            if e.userId == p.UserId then cached = e; break end
-                        end
-                        if not cached then
-                            for _, e in ipairs(matchData.playersB) do
-                                if e.userId == p.UserId then cached = e; break end
-                            end
-                        end
-
                         local entry = {
                             userId = p.UserId,
                             name = p.DisplayName or p.Name or "?",
                             username = p.Name or "?",
                             streak = p.WinStreak or 0,
                             level = p.Level or 0,
-                            kd = cached and cached.kd or "",
+                            kd = "",
                             side = side,
                         }
+                        matchData.lastSeen[p.UserId] = side
 
+                        local list_ = side == "A" and matchData.playersA or matchData.playersB
                         local found = false
-                        for i, e in ipairs(matchData.playersA) do
+                        for i, e in ipairs(list_) do
                             if e.userId == entry.userId then
-                                matchData.playersA[i] = entry
+                                entry.kd = e.kd
+                                list_[i] = entry
                                 found = true
                                 break
                             end
                         end
                         if not found then
-                            for i, e in ipairs(matchData.playersB) do
-                                if e.userId == entry.userId then
-                                    matchData.playersB[i] = entry
-                                    found = true
-                                    break
-                                end
-                            end
-                        end
-                        if not found then
-                            if side == "A" then
-                                table.insert(matchData.playersA, entry)
-                            else
-                                table.insert(matchData.playersB, entry)
-                            end
+                            table.insert(list_, entry)
                         end
                     end
                 end
@@ -590,8 +606,8 @@ end)
 local function buildStatsOverlay()
     local overlay = Instance.new("Frame")
     overlay.Name = "ZepStatsOverlay"
-    overlay.Size = UDim2.new(0.7, 0, 0.7, 0)
-    overlay.Position = UDim2.new(0.15, 0, 0.15, 0)
+    overlay.Size = UDim2.new(0.75, 0, 0.7, 0)
+    overlay.Position = UDim2.new(0.125, 0, 0.15, 0)
     overlay.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
     overlay.BackgroundTransparency = 0.05
     overlay.BorderSizePixel = 0
@@ -612,7 +628,6 @@ local function buildStatsOverlay()
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 40)
     header.BackgroundColor3 = Theme.Surface
-    header.BackgroundTransparency = 0
     header.BorderSizePixel = 0
     header.ZIndex = 31
     header.Parent = overlay
@@ -671,7 +686,7 @@ local function buildStatsOverlay()
     teamLabels.Parent = overlay
 
     local labelA = Instance.new("TextLabel")
-    labelA.Size = UDim2.new(0.5, -5, 1, 0)
+    labelA.Size = UDim2.new(0.35, -5, 1, 0)
     labelA.Position = UDim2.new(0, 0, 0, 0)
     labelA.BackgroundColor3 = Color3.fromRGB(255, 50, 100)
     labelA.BackgroundTransparency = 0.85
@@ -686,9 +701,25 @@ local function buildStatsOverlay()
     LAC.CornerRadius = UDim.new(0, 6)
     LAC.Parent = labelA
 
+    local labelLobby = Instance.new("TextLabel")
+    labelLobby.Size = UDim2.new(0.3, -5, 1, 0)
+    labelLobby.Position = UDim2.new(0.35, 0, 0, 0)
+    labelLobby.BackgroundColor3 = Color3.fromRGB(160, 160, 180)
+    labelLobby.BackgroundTransparency = 0.85
+    labelLobby.Text = "LOBBY"
+    labelLobby.TextColor3 = Color3.fromRGB(200, 200, 220)
+    labelLobby.Font = Enum.Font.GothamBold
+    labelLobby.TextSize = 11
+    labelLobby.ZIndex = 32
+    labelLobby.Parent = teamLabels
+
+    local LLC = Instance.new("UICorner")
+    LLC.CornerRadius = UDim.new(0, 6)
+    LLC.Parent = labelLobby
+
     local labelB = Instance.new("TextLabel")
-    labelB.Size = UDim2.new(0.5, -5, 1, 0)
-    labelB.Position = UDim2.new(0.5, 5, 0, 0)
+    labelB.Size = UDim2.new(0.35, -5, 1, 0)
+    labelB.Position = UDim2.new(0.65, 0, 0, 0)
     labelB.BackgroundColor3 = Color3.fromRGB(50, 200, 255)
     labelB.BackgroundTransparency = 0.85
     labelB.Text = "КОМАНДА B"
@@ -702,41 +733,30 @@ local function buildStatsOverlay()
     LBC.CornerRadius = UDim.new(0, 6)
     LBC.Parent = labelB
 
-    local scrollA = Instance.new("ScrollingFrame")
-    scrollA.Name = "ListA"
-    scrollA.Size = UDim2.new(0.5, -15, 1, -90)
-    scrollA.Position = UDim2.new(0, 10, 0, 76)
-    scrollA.BackgroundTransparency = 1
-    scrollA.BorderSizePixel = 0
-    scrollA.ScrollBarThickness = 3
-    scrollA.ScrollBarImageColor3 = Theme.Accent
-    scrollA.CanvasSize = UDim2.new(0, 0, 0, 0)
-    scrollA.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    scrollA.ZIndex = 31
-    scrollA.Parent = overlay
+    local function makeScroll(name, xPos, width)
+        local s = Instance.new("ScrollingFrame")
+        s.Name = name
+        s.Size = UDim2.new(width, -5, 1, -90)
+        s.Position = UDim2.new(xPos, 5, 0, 76)
+        s.BackgroundTransparency = 1
+        s.BorderSizePixel = 0
+        s.ScrollBarThickness = 3
+        s.ScrollBarImageColor3 = Theme.Accent
+        s.CanvasSize = UDim2.new(0, 0, 0, 0)
+        s.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        s.ZIndex = 31
+        s.Parent = overlay
 
-    local LA = Instance.new("UIListLayout")
-    LA.SortOrder = Enum.SortOrder.LayoutOrder
-    LA.Padding = UDim.new(0, 6)
-    LA.Parent = scrollA
+        local l = Instance.new("UIListLayout")
+        l.SortOrder = Enum.SortOrder.LayoutOrder
+        l.Padding = UDim.new(0, 6)
+        l.Parent = s
+        return s
+    end
 
-    local scrollB = Instance.new("ScrollingFrame")
-    scrollB.Name = "ListB"
-    scrollB.Size = UDim2.new(0.5, -15, 1, -90)
-    scrollB.Position = UDim2.new(0.5, 5, 0, 76)
-    scrollB.BackgroundTransparency = 1
-    scrollB.BorderSizePixel = 0
-    scrollB.ScrollBarThickness = 3
-    scrollB.ScrollBarImageColor3 = Theme.Accent3
-    scrollB.CanvasSize = UDim2.new(0, 0, 0, 0)
-    scrollB.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    scrollB.ZIndex = 31
-    scrollB.Parent = overlay
-
-    local LB = Instance.new("UIListLayout")
-    LB.SortOrder = Enum.SortOrder.LayoutOrder
-    LB.Padding = UDim.new(0, 6)
-    LB.Parent = scrollB
+    makeScroll("ListA", 0, 0.35)
+    makeScroll("ListLobby", 0.35, 0.3)
+    makeScroll("ListB", 0.65, 0.35)
 
     local dragM = false
     local dragMS, dragMP
@@ -765,6 +785,53 @@ local function buildStatsOverlay()
     return overlay
 end
 
+local function isAlive(userId)
+    local p = Players:GetPlayerByUserId(userId)
+    if not p then return false end
+    local char = p.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+    return hum.Health > 0
+end
+
+local function getHealth(userId)
+    local p = Players:GetPlayerByUserId(userId)
+    if not p then return 0 end
+    local char = p.Character
+    if not char then return 0 end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return 0 end
+    return hum.Health
+end
+
+local function applyStamp(row, text, color, textTransp)
+    local overlay = Instance.new("Frame")
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.Position = UDim2.new(0, 0, 0, 0)
+    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BackgroundTransparency = 0.75
+    overlay.BorderSizePixel = 0
+    overlay.ZIndex = 35
+    overlay.Parent = row
+
+    local OVC = Instance.new("UICorner")
+    OVC.CornerRadius = UDim.new(0, 10)
+    OVC.Parent = overlay
+
+    local stampText = Instance.new("TextLabel")
+    stampText.Size = UDim2.new(1, 0, 1, 0)
+    stampText.BackgroundTransparency = 1
+    stampText.Text = text
+    stampText.TextColor3 = color
+    stampText.TextTransparency = textTransp or 0
+    stampText.Font = Enum.Font.GothamBlack
+    stampText.TextSize = 32
+    stampText.Rotation = 20
+    stampText.ZIndex = 36
+    stampText.Parent = overlay
+end
+
 local function makeRow(parent, entry, isMe, side)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 54)
@@ -778,17 +845,28 @@ local function makeRow(parent, entry, isMe, side)
     RC.CornerRadius = UDim.new(0, 10)
     RC.Parent = row
 
+    local strokeColor
     if isMe then
-        local RS = Instance.new("UIStroke")
-        RS.Color = Theme.Accent
-        RS.Thickness = 1.5
-        RS.Parent = row
+        strokeColor = Theme.Accent
+    elseif side == "A" then
+        strokeColor = Color3.fromRGB(120, 40, 60)
+    elseif side == "B" then
+        strokeColor = Color3.fromRGB(40, 100, 140)
     else
-        local RS = Instance.new("UIStroke")
-        RS.Color = side == "A" and Color3.fromRGB(120, 40, 60) or Color3.fromRGB(40, 100, 140)
-        RS.Thickness = 1
-        RS.Transparency = 0.5
-        RS.Parent = row
+        strokeColor = Color3.fromRGB(70, 70, 90)
+    end
+
+    local RS = Instance.new("UIStroke")
+    RS.Color = strokeColor
+    RS.Thickness = isMe and 1.5 or 1
+    RS.Transparency = isMe and 0 or 0.5
+    RS.Parent = row
+
+    local leftFlag = matchData.leftIds[entry.userId] == true
+
+    local nameColor = isMe and Theme.Accent or Theme.Text
+    if leftFlag then
+        nameColor = Theme.Left
     end
 
     local nameLbl = Instance.new("TextLabel")
@@ -796,15 +874,20 @@ local function makeRow(parent, entry, isMe, side)
     nameLbl.Position = UDim2.new(0, 10, 0, 6)
     nameLbl.BackgroundTransparency = 1
     nameLbl.Text = entry.name
-    nameLbl.TextColor3 = isMe and Theme.Accent or Theme.Text
+    nameLbl.TextColor3 = nameColor
+    nameLbl.TextTransparency = leftFlag and 0.5 or 0
     nameLbl.Font = Enum.Font.GothamBold
     nameLbl.TextSize = 13
     nameLbl.TextXAlignment = Enum.TextXAlignment.Left
     nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
-    nameLbl.ZIndex = 33
+    nameLbl.ZIndex = 34
     nameLbl.Parent = row
 
     local streakColor_ = streakColor(entry.streak or 0)
+    if leftFlag then
+        streakColor_ = Theme.Left
+    end
+
     local streakLbl = Instance.new("TextLabel")
     streakLbl.Size = UDim2.new(1, -20, 0, 20)
     streakLbl.Position = UDim2.new(0, 10, 0, 28)
@@ -815,11 +898,21 @@ local function makeRow(parent, entry, isMe, side)
         entry.kd ~= "" and entry.kd or "—"
     )
     streakLbl.TextColor3 = streakColor_
+    streakLbl.TextTransparency = leftFlag and 0.5 or 0
     streakLbl.Font = Enum.Font.GothamMedium
     streakLbl.TextSize = 11
     streakLbl.TextXAlignment = Enum.TextXAlignment.Left
-    streakLbl.ZIndex = 33
+    streakLbl.ZIndex = 34
     streakLbl.Parent = row
+
+    if not leftFlag then
+        local hp = getHealth(entry.userId)
+        if hp <= 0 then
+            applyStamp(row, "200", Color3.fromRGB(255, 40, 60), 0)
+        elseif hp < 50 then
+            applyStamp(row, "100", Color3.fromRGB(255, 180, 40), 0.25)
+        end
+    end
 
     return row
 end
@@ -830,7 +923,8 @@ local function refreshOverlay()
 
     local listA = statsOverlay:FindFirstChild("ListA")
     local listB = statsOverlay:FindFirstChild("ListB")
-    if not listA or not listB then return end
+    local listLobby = statsOverlay:FindFirstChild("ListLobby")
+    if not listA or not listB or not listLobby then return end
 
     for _, c in ipairs(listA:GetChildren()) do
         if c:IsA("Frame") then c:Destroy() end
@@ -838,12 +932,13 @@ local function refreshOverlay()
     for _, c in ipairs(listB:GetChildren()) do
         if c:IsA("Frame") then c:Destroy() end
     end
+    for _, c in ipairs(listLobby:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
 
     local function sortByStreak(list)
         local copy = {}
-        for _, e in ipairs(list) do
-            table.insert(copy, e)
-        end
+        for _, e in ipairs(list) do table.insert(copy, e) end
         table.sort(copy, function(a, b)
             return (a.streak or 0) > (b.streak or 0)
         end)
@@ -856,28 +951,42 @@ local function refreshOverlay()
     for _, e in ipairs(sortByStreak(matchData.playersB)) do
         makeRow(listB, e, e.userId == plr.UserId, "B")
     end
+    for _, e in ipairs(matchData.playersLobby) do
+        makeRow(listLobby, e, e.userId == plr.UserId, "Lobby")
+    end
 
     if #matchData.playersA == 0 then
         local empty = Instance.new("TextLabel")
         empty.Size = UDim2.new(1, 0, 0, 30)
         empty.BackgroundTransparency = 1
-        empty.Text = "Ожидание данных..."
+        empty.Text = "—"
         empty.TextColor3 = Theme.TextDim
         empty.Font = Enum.Font.Gotham
         empty.TextSize = 11
-        empty.ZIndex = 32
+        empty.ZIndex = 33
         empty.Parent = listA
     end
     if #matchData.playersB == 0 then
         local empty = Instance.new("TextLabel")
         empty.Size = UDim2.new(1, 0, 0, 30)
         empty.BackgroundTransparency = 1
-        empty.Text = "Ожидание данных..."
+        empty.Text = "—"
         empty.TextColor3 = Theme.TextDim
         empty.Font = Enum.Font.Gotham
         empty.TextSize = 11
-        empty.ZIndex = 32
+        empty.ZIndex = 33
         empty.Parent = listB
+    end
+    if #matchData.playersLobby == 0 then
+        local empty = Instance.new("TextLabel")
+        empty.Size = UDim2.new(1, 0, 0, 30)
+        empty.BackgroundTransparency = 1
+        empty.Text = "—"
+        empty.TextColor3 = Theme.TextDim
+        empty.Font = Enum.Font.Gotham
+        empty.TextSize = 11
+        empty.ZIndex = 33
+        empty.Parent = listLobby
     end
 end
 
@@ -1520,6 +1629,8 @@ local function HasLineOfSight(targetChar)
 end
 
 local function GetClosestTarget()
+    if not AmIReady() then return nil, nil end
+
     local cam = workspace.CurrentCamera
     local myChar = plr.Character
     if not myChar then return nil, nil end
@@ -1610,7 +1721,7 @@ RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
     local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     local cam = workspace.CurrentCamera
 
-    if Config.AimLock then
+    if Config.AimLock and AmIReady() then
         local char, part = GetClosestTarget()
         if char and part and cam then
             local aimCF = CFrame.new(cam.CFrame.Position, part.Position)
@@ -1672,9 +1783,15 @@ task.spawn(function()
         task.wait(1)
         if MyTeam ~= lastTeam then
             lastTeam = MyTeam
-            if MyTeam then
-                TeamLabel.Text = "Команда: " .. MyTeam
-                TeamLabel.TextColor3 = Theme.Green
+            if MyTeam == "A" then
+                TeamLabel.Text = "Команда: A"
+                TeamLabel.TextColor3 = Color3.fromRGB(255, 100, 140)
+            elseif MyTeam == "B" then
+                TeamLabel.Text = "Команда: B"
+                TeamLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
+            elseif MyTeam == "Lobby" then
+                TeamLabel.Text = "В лобби — аим спит"
+                TeamLabel.TextColor3 = Theme.Lobby
             else
                 TeamLabel.Text = "Команда: не определена"
                 TeamLabel.TextColor3 = Theme.TextDim
@@ -1700,7 +1817,7 @@ local function ClearESP()
 end
 
 local function UpdateESP()
-    if not Config.ESP then
+    if not Config.ESP or not AmIReady() then
         if #espObjects > 0 then ClearESP() end
         return
     end
@@ -1833,6 +1950,7 @@ MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 18
     MyTeamColor = nil
     CurrentTarget = nil
     cachedTargetPlayer = nil
+    UpdateFOVVisibility()
 end)
 
 MakeButton(PageConfig, "Server Hop", Color3.fromRGB(60, 200, 255), function()
