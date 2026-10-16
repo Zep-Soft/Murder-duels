@@ -4,6 +4,8 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TextChatService = game:GetService("TextChatService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 local plr = Players.LocalPlayer
 
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
@@ -121,8 +123,8 @@ local Theme = {
 
 local FOV_SIZE = 150
 local RENDER_PRIORITY = 3000
-local HOLD_MULT = 2.0
-local HOLD_TIME = 1.0
+local HOLD_MULT = 1.0
+local HOLD_TIME = 0.15
 
 local Config = {
     AimLock = false,
@@ -138,6 +140,8 @@ local lastValidTime = 0
 local cachedTargetPlayer = nil
 
 local bodyGyro = nil
+local lastHopTime = 0
+local HOP_COOLDOWN = 5
 
 local function SetupBodyRotation(hrp)
     if bodyGyro and bodyGyro.Parent then
@@ -1140,12 +1144,108 @@ task.spawn(function()
     end
 end)
 
+local function HopServer()
+    local now = tick()
+    if now - lastHopTime < HOP_COOLDOWN then
+        local left = math.ceil(HOP_COOLDOWN - (now - lastHopTime))
+        return false, "Подожди " .. left .. " сек"
+    end
+    lastHopTime = now
+
+    local ok, err = pcall(function()
+        local url = string.format(
+            "https://games.roblox.com/v1/games/%d/servers/Public?limit=100",
+            game.PlaceId
+        )
+        local response = game:HttpGet(url)
+        local data = HttpService:JSONDecode(response)
+        if not data or not data.data then
+            error("Нет данных от Roblox API")
+        end
+
+        local candidates = {}
+        for _, srv in ipairs(data.data) do
+            if srv.id and srv.id ~= game.JobId and srv.playing < srv.maxPlayers then
+                table.insert(candidates, srv)
+            end
+        end
+
+        if #candidates == 0 then
+            error("Нет свободных серверов")
+        end
+
+        local target = candidates[math.random(1, #candidates)]
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, target.id, plr)
+    end)
+
+    if not ok then
+        return false, tostring(err)
+    end
+    return true, "Хоп..."
+end
+
+local function showToast(text, color)
+    local old = ScreenGui:FindFirstChild("ZepToast")
+    if old then old:Destroy() end
+
+    local T = Instance.new("TextLabel")
+    T.Name = "ZepToast"
+    T.Size = UDim2.new(0, 0, 0, 40)
+    T.AutomaticSize = Enum.AutomaticSize.X
+    T.Position = UDim2.new(0.5, 0, 0.9, 0)
+    T.AnchorPoint = Vector2.new(0.5, 0)
+    T.BackgroundColor3 = Color3.fromRGB(24, 24, 36)
+    T.BackgroundTransparency = 0
+    T.BorderSizePixel = 0
+    T.Text = "  " .. text .. "  "
+    T.TextColor3 = color or Color3.fromRGB(60, 220, 130)
+    T.Font = Enum.Font.GothamBold
+    T.TextSize = 12
+    T.ZIndex = 50
+    T.Parent = ScreenGui
+
+    local TC = Instance.new("UICorner")
+    TC.CornerRadius = UDim.new(0, 10)
+    TC.Parent = T
+
+    local TS = Instance.new("UIStroke")
+    TS.Color = color or Color3.fromRGB(60, 220, 130)
+    TS.Thickness = 1
+    TS.Parent = T
+
+    T.Position = UDim2.new(0.5, 0, 1, 20)
+    TweenService:Create(T, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
+        Position = UDim2.new(0.5, 0, 0.9, 0),
+    }):Play()
+
+    task.delay(2.5, function()
+        if T and T.Parent then
+            local t = TweenService:Create(T, TweenInfo.new(0.2), {
+                Position = UDim2.new(0.5, 0, 1, 20),
+                BackgroundTransparency = 1,
+            })
+            t:Play()
+            t.Completed:Wait()
+            if T and T.Parent then T:Destroy() end
+        end
+    end)
+end
+
 MakeSection(PageConfig, "Управление")
 MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 180, 50), function()
     MyTeam = nil
     MyTeamColor = nil
     CurrentTarget = nil
     cachedTargetPlayer = nil
+end)
+
+MakeButton(PageConfig, "Server Hop", Color3.fromRGB(60, 200, 255), function()
+    local ok, msg = HopServer()
+    if ok then
+        showToast(msg, Color3.fromRGB(60, 200, 255))
+    else
+        showToast("Ошибка: " .. msg, Color3.fromRGB(255, 60, 80))
+    end
 end)
 
 local uiOpen = true
