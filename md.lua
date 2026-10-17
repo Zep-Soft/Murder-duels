@@ -68,8 +68,8 @@ local defaultSession = {
     HeadChance = 75,
     ESP = false,
     IgnoreWalls = false,
-    FloatX = 0,
-    FloatY = 0,
+    FloatXOffset = 0,
+    FloatYOffset = 0,
     FloatXScale = 0.02,
     FloatYScale = 0.45,
     HasPending = false,
@@ -1308,6 +1308,13 @@ local function UnloadAll()
     Config.AimLock = false
     Config.AimHold = false
     Config.ESP = false
+    Config.IgnoreWalls = false
+    Session.HasPending = false
+    Session.AimLock = false
+    Session.AimHold = false
+    Session.ESP = false
+    Session.IgnoreWalls = false
+    SaveSession()
     pcall(function()
         RunService:UnbindFromRenderStep("ZepAimStep")
     end)
@@ -1331,13 +1338,7 @@ MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), fun
 end)
 
 local FloatBtn = Instance.new("TextButton")
-FloatBtn.Size = UDim2.new(0.08, 0, 0.1, 0)
-FloatBtn.Position = UDim2.new(
-    Session.FloatXScale or 0.02,
-    Session.FloatX or 0,
-    Session.FloatYScale or 0.45,
-    Session.FloatY or 0
-)
+FloatBtn.Size = UDim2.new(0, 56, 0, 56)
 FloatBtn.BackgroundColor3 = Theme.Bg
 FloatBtn.Text = ""
 FloatBtn.BorderSizePixel = 0
@@ -1398,9 +1399,25 @@ local FBIC2 = Instance.new("UICorner")
 FBIC2.CornerRadius = UDim.new(0, 4)
 FBIC2.Parent = FBInner
 
+task.defer(function()
+    local vp = workspace.CurrentCamera.ViewportSize
+    local btnSize = FloatBtn.AbsoluteSize
+    local initX, initY
+    if (Session.FloatXOffset and Session.FloatXOffset ~= 0) or (Session.FloatYOffset and Session.FloatYOffset ~= 0) then
+        initX = Session.FloatXOffset or 0
+        initY = Session.FloatYOffset or 0
+    else
+        initX = (Session.FloatXScale or 0.02) * vp.X
+        initY = (Session.FloatYScale or 0.45) * vp.Y
+    end
+    initX = math.clamp(initX, 0, vp.X - btnSize.X)
+    initY = math.clamp(initY, 0, vp.Y - btnSize.Y)
+    FloatBtn.Position = UDim2.fromOffset(initX, initY)
+end)
+
 local dragF = false
 local dragStart = nil
-local dragBasePos = nil
+local dragBaseOffset = nil
 local movedF = false
 
 FloatBtn.InputBegan:Connect(function(input)
@@ -1408,7 +1425,7 @@ FloatBtn.InputBegan:Connect(function(input)
         dragF = true
         movedF = false
         dragStart = input.Position
-        dragBasePos = FloatBtn.AbsolutePosition
+        dragBaseOffset = Vector2.new(FloatBtn.Position.X.Offset, FloatBtn.Position.Y.Offset)
     end
 end)
 
@@ -1424,8 +1441,8 @@ UIS.InputChanged:Connect(function(input)
         if math.abs(d.X) > 3 or math.abs(d.Y) > 3 then movedF = true end
         local vp = workspace.CurrentCamera.ViewportSize
         local btnSize = FloatBtn.AbsoluteSize
-        local newX = math.clamp(dragBasePos.X + d.X, 0, vp.X - btnSize.X)
-        local newY = math.clamp(dragBasePos.Y + d.Y, 0, vp.Y - btnSize.Y)
+        local newX = math.clamp(dragBaseOffset.X + d.X, 0, vp.X - btnSize.X)
+        local newY = math.clamp(dragBaseOffset.Y + d.Y, 0, vp.Y - btnSize.Y)
         FloatBtn.Position = UDim2.fromOffset(newX, newY)
     end
 end)
@@ -1471,10 +1488,10 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 FloatBtn:GetPropertyChangedSignal("Position"):Connect(function()
-    Session.FloatX = FloatBtn.Position.X.Offset
-    Session.FloatY = FloatBtn.Position.Y.Offset
-    Session.FloatXScale = FloatBtn.Position.X.Scale
-    Session.FloatYScale = FloatBtn.Position.Y.Scale
+    Session.FloatXOffset = FloatBtn.Position.X.Offset
+    Session.FloatYOffset = FloatBtn.Position.Y.Offset
+    Session.FloatXScale = 0
+    Session.FloatYScale = 0
     SaveSession()
 end)
 
