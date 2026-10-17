@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local TextChatService = game:GetService("TextChatService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
 local plr = Players.LocalPlayer
 
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
@@ -59,6 +60,23 @@ if _G.ZepHub_Loaded then
 end
 _G.ZepHub_Loaded = true
 
+pcall(function()
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        pcall(function()
+            local cg = game:GetService("CoreGui")
+            local pl = cg:FindFirstChild("PlayerList")
+            if pl and pl:IsA("GuiObject") then
+                pl.Visible = false
+            end
+        end)
+    end
+end)
+
 local Theme = {
     Bg       = Color3.fromRGB(10, 10, 16),
     Surface  = Color3.fromRGB(18, 18, 28),
@@ -103,6 +121,9 @@ local cachedTargetPlayer = nil
 local bodyGyro = nil
 local lastHopTime = 0
 local HOP_COOLDOWN = 5
+
+local initialPlayersInMatch = nil
+local initialPlayersDone = false
 
 local matchData = {
     playersA = {},
@@ -282,8 +303,53 @@ local function AmIReady()
 end
 
 local function StatsReady()
-    return next(matchData.knownA) ~= nil or next(matchData.knownB) ~= nil
+    if not initialPlayersDone then return false end
+    if not initialPlayersInMatch then return true end
+    for userId, _ in pairs(initialPlayersInMatch) do
+        if not (matchData.knownA[userId] or matchData.knownB[userId]) then
+            return false
+        end
+    end
+    return true
 end
+
+task.spawn(function()
+    local pg = plr:WaitForChild("PlayerGui", 15)
+    if not pg then return end
+    
+    while initialPlayersInMatch == nil do
+        task.wait(0.5)
+        pcall(function()
+            local hud = pg:FindFirstChild("HUD")
+            if hud then
+                local leaderboard = nil
+                for _, d in ipairs(hud:GetDescendants()) do
+                    if d.Name == "PlayerContainer" and d:IsA("ScrollingFrame") then
+                        leaderboard = d
+                        break
+                    end
+                end
+                if leaderboard then
+                    local found = {}
+                    local count = 0
+                    for _, row in ipairs(leaderboard:GetChildren()) do
+                        if row:IsA("TextButton") and row.Name:match("^UserFrame_%d+$") then
+                            local userId = tonumber(row.Name:match("^UserFrame_(%d+)$"))
+                            if userId then
+                                found[userId] = true
+                                count = count + 1
+                            end
+                        end
+                    end
+                    if count > 0 then
+                        initialPlayersInMatch = found
+                        initialPlayersDone = true
+                    end
+                end
+            end
+        end)
+    end
+end)
 
 task.spawn(function()
     local pg = plr:WaitForChild("PlayerGui", 15)
@@ -545,12 +611,6 @@ task.spawn(function()
 
     state.OnClientEvent:Connect(function(_, payload)
         if type(payload) ~= "table" then return end
-
-        if payload.t == "MatchStarted" then
-            matchData.knownA = {}
-            matchData.knownB = {}
-            matchData.leftIds = {}
-        end
 
         if payload.t == "MatchEnded" then
             local function store(list, side)
