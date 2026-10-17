@@ -1107,6 +1107,14 @@ local TLC = Instance.new("UICorner")
 TLC.CornerRadius = UDim.new(0, 10)
 TLC.Parent = TeamLabel
 
+local TeamGrad = Instance.new("UIGradient")
+TeamGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+})
+TeamGrad.Rotation = 45
+TeamGrad.Parent = TeamLabel
+
 local TLStroke = Instance.new("UIStroke")
 TLStroke.Color = Theme.Stroke
 TLStroke.Thickness = 1
@@ -1387,29 +1395,25 @@ local FBIC2 = Instance.new("UICorner")
 FBIC2.CornerRadius = UDim.new(0, 4)
 FBIC2.Parent = FBInner
 
+local BTN_SIZE = 56
+
 task.defer(function()
     local vp = workspace.CurrentCamera.ViewportSize
-    local bx, by
-    if (Session.FloatX or 0) ~= 0 or (Session.FloatY or 0) ~= 0 then
-        bx = Session.FloatX
-        by = Session.FloatY
-    else
+    local bx = Session.FloatX or 0
+    local by = Session.FloatY or 0
+    if bx == 0 and by == 0 then
         bx = (Session.FloatXScale or 0.02) * vp.X
         by = (Session.FloatYScale or 0.45) * vp.Y
     end
-    bx = math.clamp(bx, 0, vp.X - 56)
-    by = math.clamp(by, 0, vp.Y - 56)
+    bx = math.clamp(bx, 0, vp.X - BTN_SIZE)
+    by = math.clamp(by, 0, vp.Y - BTN_SIZE)
     FloatBtn.Position = UDim2.fromOffset(bx, by)
-    Session.FloatX = bx
-    Session.FloatY = by
-    Session.FloatXScale = 0
-    Session.FloatYScale = 0
-    SaveSession()
 end)
 
 local dragF = false
 local dragStartPos = nil
-local btnStartPos = nil
+local btnStartX = 0
+local btnStartY = 0
 local movedF = false
 local touchStartTime = 0
 local dragConn = nil
@@ -1417,11 +1421,15 @@ local dragConn = nil
 local function endDrag()
     dragF = false
     dragStartPos = nil
-    btnStartPos = nil
     if dragConn then
         dragConn:Disconnect()
         dragConn = nil
     end
+    Session.FloatX = FloatBtn.Position.X.Offset
+    Session.FloatY = FloatBtn.Position.Y.Offset
+    Session.FloatXScale = 0
+    Session.FloatYScale = 0
+    SaveSession()
 end
 
 local function startDrag(input)
@@ -1429,7 +1437,8 @@ local function startDrag(input)
     movedF = false
     touchStartTime = tick()
     dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
-    btnStartPos = Vector2.new(FloatBtn.AbsolutePosition.X, FloatBtn.AbsolutePosition.Y)
+    btnStartX = FloatBtn.Position.X.Offset
+    btnStartY = FloatBtn.Position.Y.Offset
 
     dragConn = UIS.InputChanged:Connect(function(changed)
         if not dragF then return end
@@ -1444,9 +1453,8 @@ local function startDrag(input)
         if not movedF then return end
 
         local vp = workspace.CurrentCamera.ViewportSize
-        local btnSize = FloatBtn.AbsoluteSize
-        local newX = math.clamp(btnStartPos.X + delta.X, 0, vp.X - btnSize.X)
-        local newY = math.clamp(btnStartPos.Y + delta.Y, 0, vp.Y - btnSize.Y)
+        local newX = math.clamp(btnStartX + delta.X, 0, vp.X - BTN_SIZE)
+        local newY = math.clamp(btnStartY + delta.Y, 0, vp.Y - BTN_SIZE)
         FloatBtn.Position = UDim2.fromOffset(newX, newY)
     end)
 end
@@ -1543,14 +1551,6 @@ end)
 
 CloseBtn.MouseButton1Click:Connect(function()
     UnloadAll()
-end)
-
-FloatBtn:GetPropertyChangedSignal("Position"):Connect(function()
-    Session.FloatX = FloatBtn.Position.X.Offset
-    Session.FloatY = FloatBtn.Position.Y.Offset
-    Session.FloatXScale = 0
-    Session.FloatYScale = 0
-    SaveSession()
 end)
 
 print("Zep Hub Murder Duels loaded")
