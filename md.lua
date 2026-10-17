@@ -1107,14 +1107,6 @@ local TLC = Instance.new("UICorner")
 TLC.CornerRadius = UDim.new(0, 10)
 TLC.Parent = TeamLabel
 
-local TeamGrad = Instance.new("UIGradient")
-TeamGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
-})
-TeamGrad.Rotation = 45
-TeamGrad.Parent = TeamLabel
-
 local TLStroke = Instance.new("UIStroke")
 TLStroke.Color = Theme.Stroke
 TLStroke.Thickness = 1
@@ -1265,18 +1257,17 @@ end)
 local uiOpen = true
 local uiAnimating = false
 local baseSize = UDim2.new(0.5, 0, 0.65, 0)
-local basePos = UDim2.new(0.25, 0, 0.175, 0)
 
 local function OpenUI()
     if uiOpen or uiAnimating then return end
     uiAnimating = true
+    local currentPos = Main.Position
     Main.Visible = true
     Main.Size = UDim2.new(0.4, 0, 0.5, 0)
-    Main.Position = UDim2.new(0.3, 0, 0.25, 0)
     Main.BackgroundTransparency = 1
     local t = TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
         Size = baseSize,
-        Position = basePos,
+        Position = currentPos,
         BackgroundTransparency = 0,
     })
     t:Play()
@@ -1289,16 +1280,16 @@ end
 local function CloseUI()
     if not uiOpen or uiAnimating then return end
     uiAnimating = true
+    local currentPos = Main.Position
     local t = TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
         Size = UDim2.new(0.4, 0, 0.5, 0),
-        Position = UDim2.new(0.3, 0, 0.25, 0),
+        Position = currentPos,
         BackgroundTransparency = 1,
     })
     t:Play()
     t.Completed:Wait()
     Main.Visible = false
     Main.Size = baseSize
-    Main.Position = basePos
     Main.BackgroundTransparency = 0
     uiOpen = false
     uiAnimating = false
@@ -1338,17 +1329,14 @@ MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), fun
 end)
 
 local FloatBtn = Instance.new("TextButton")
-FloatBtn.Size = UDim2.new(0, 56, 0, 56)
+FloatBtn.Size = UDim2.fromOffset(56, 56)
 FloatBtn.BackgroundColor3 = Theme.Bg
 FloatBtn.Text = ""
 FloatBtn.BorderSizePixel = 0
 FloatBtn.AutoButtonColor = false
 FloatBtn.ZIndex = 20
+FloatBtn.AnchorPoint = Vector2.new(0, 0)
 FloatBtn.Parent = ScreenGui
-
-local FBAspect = Instance.new("UIAspectRatioConstraint")
-FBAspect.AspectRatio = 1
-FBAspect.Parent = FloatBtn
 
 local FBC = Instance.new("UICorner")
 FBC.CornerRadius = UDim.new(1, 0)
@@ -1488,26 +1476,64 @@ FloatBtn.InputEnded:Connect(function(input)
     end
 end)
 
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+    or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if dragF then endDrag() end
+    end
+end)
+
 local dragM = false
-local dragMS, dragMP
+local dragStartM = nil
+local mainStartM = nil
+local dragMConn = nil
+
+local function endDragM()
+    dragM = false
+    dragStartM = nil
+    mainStartM = nil
+    if dragMConn then
+        dragMConn:Disconnect()
+        dragMConn = nil
+    end
+end
 
 TopBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
         dragM = true
-        dragMS = input.Position
-        dragMP = Main.Position
+        dragStartM = Vector2.new(input.Position.X, input.Position.Y)
+        mainStartM = Vector2.new(Main.AbsolutePosition.X, Main.AbsolutePosition.Y)
+
+        dragMConn = UIS.InputChanged:Connect(function(changed)
+            if not dragM then return end
+            if changed.UserInputType ~= Enum.UserInputType.MouseMovement
+            and changed.UserInputType ~= Enum.UserInputType.Touch then return end
+
+            local cur = Vector2.new(changed.Position.X, changed.Position.Y)
+            local delta = cur - dragStartM
+            local vp = workspace.CurrentCamera.ViewportSize
+            local mainSize = Main.AbsoluteSize
+
+            local newX = math.clamp(mainStartM.X + delta.X, 0, vp.X - mainSize.X)
+            local newY = math.clamp(mainStartM.Y + delta.Y, 0, vp.Y - mainSize.Y)
+
+            Main.Position = UDim2.fromOffset(newX, newY)
+        end)
     end
 end)
+
 TopBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragM = false
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        endDragM()
     end
 end)
-UIS.InputChanged:Connect(function(input)
-    if dragM and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local d = input.Position - dragMS
-        Main.Position = UDim2.new(dragMP.X.Scale, dragMP.X.Offset + d.X, dragMP.Y.Scale, dragMP.Y.Offset + d.Y)
-        basePos = Main.Position
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        if dragM then endDragM() end
     end
 end)
 
