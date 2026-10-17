@@ -77,6 +77,32 @@ task.spawn(function()
     end
 end)
 
+task.spawn(function()
+    local pg = plr:WaitForChild("PlayerGui", 15)
+    if not pg then return end
+    while true do
+        task.wait(0.2)
+        pcall(function()
+            local hud = pg:FindFirstChild("HUD")
+            if hud then
+                for _, d in ipairs(hud:GetDescendants()) do
+                    if d.Name == "MatchLeaderboard" and d:IsA("GuiObject") then
+                        d.Visible = false
+                    end
+                end
+            end
+            local tb = pg:FindFirstChild("TopbarStandard")
+            if tb then
+                for _, d in ipairs(tb:GetDescendants()) do
+                    if d.Name == "PlayerList" and d:IsA("GuiObject") then
+                        d.Visible = false
+                    end
+                end
+            end
+        end)
+    end
+end)
+
 local Theme = {
     Bg       = Color3.fromRGB(10, 10, 16),
     Surface  = Color3.fromRGB(18, 18, 28),
@@ -297,7 +323,6 @@ task.spawn(function()
 
     state.OnClientEvent:Connect(function(_, payload)
         if type(payload) ~= "table" then return end
-
         if payload.t == "MatchEnded" then
             local function store(list, side)
                 if type(list) ~= "table" then return end
@@ -790,8 +815,7 @@ local function MakeTab(name, subtitle, pageName)
         ActiveTab = Btn
         SetActive(true)
         SwitchPage(pageName)
-    end
-end
+    endend
 
 local function MakeSection(parent, text)
     local S = Instance.new("TextLabel")
