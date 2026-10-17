@@ -12,6 +12,12 @@ local plr = Players.LocalPlayer
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
 local MD_PLACE_ID = 120851538706364
 
+local FOV_SIZE = 150
+local HOLD_MULT = 1.3
+local HOLD_TIME = 0.25
+local TARGET_PART_REFRESH = 0.5
+local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 1
+
 if _G.ZepHub_Loaded then
     if _G.ZepHub_Unload then
         pcall(_G.ZepHub_Unload)
@@ -82,7 +88,8 @@ end
 local function SpawnLoop(fn)
     local t = task.spawn(function()
         while Alive do
-            if not fn() then break end
+            local ok, cont = pcall(fn)
+            if not ok or cont == false then break end
             task.wait(0.1)
         end
     end)
@@ -152,11 +159,6 @@ local Theme = {
     Lobby    = Color3.fromRGB(160, 160, 180),
 }
 
-local FOV_SIZE = 150
-local HOLD_MULT = 1.3
-local HOLD_TIME = 0.25
-local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 1
-
 local Config = {
     AimLock = false,
     HeadChance = 75,
@@ -206,17 +208,14 @@ end)
 SpawnLoop(function()
     task.wait(10)
     if not Alive then return false end
-    pcall(function()
-        local response = game:HttpGet(RESET_URL)
-        if response and response:gsub("%s", "") == "RESET" then
-            if _G.ZepHub_Unload then
-                pcall(_G.ZepHub_Unload)
-            end
-            pcall(function()
-                plr:Kick("Скрипт обновлён. Можете зайти заново")
-            end)
+    local ok, response = pcall(function() return game:HttpGet(RESET_URL) end)
+    if ok and type(response) == "string" then
+        local clean = response:gsub("%s", ""):upper()
+        if clean == "RESET" or clean:sub(1, 5) == "RESET" then
+            if _G.ZepHub_Unload then pcall(_G.ZepHub_Unload) end
+            pcall(function() plr:Kick("Скрипт обновлён. Можете зайти заново") end)
         end
-    end)
+    end
     return true
 end)
 
@@ -1164,10 +1163,9 @@ local function GetTargetPartStable(targetChar)
     return cachedTargetPart
 end
 
-local TARGET_PART_REFRESH = 0.5
-
 local function GetClosestTarget()
     local cam = workspace.CurrentCamera
+    if not cam then return nil, nil end
     local myChar = plr.Character
     if not myChar then return nil, nil end
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
@@ -1260,32 +1258,37 @@ end
 
 local function AimStep()
     if not Alive then return end
-    local myChar = plr.Character
-    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-    local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local cam = workspace.CurrentCamera
+    local ok, err = pcall(function()
+        local myChar = plr.Character
+        local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local cam = workspace.CurrentCamera
 
-    if Config.AimLock then
-        local char, part = GetClosestTarget()
-        if char and part and part.Parent and cam then
-            cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
-            if hum then hum.AutoRotate = false end
-            if bodyGyro and bodyGyro.Parent and hrp then
-                local look = cam.CFrame.LookVector
-                local flat = Vector3.new(look.X, 0, look.Z)
-                if flat.Magnitude > 0.001 then
-                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flat.Unit)
+        if Config.AimLock then
+            local char, part = GetClosestTarget()
+            if char and part and part.Parent and cam then
+                cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
+                if hum then hum.AutoRotate = false end
+                if bodyGyro and bodyGyro.Parent and hrp then
+                    local look = cam.CFrame.LookVector
+                    local flat = Vector3.new(look.X, 0, look.Z)
+                    if flat.Magnitude > 0.001 then
+                        bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flat.Unit)
+                    end
                 end
             end
+        else
+            if hum and not hum.AutoRotate then
+                hum.AutoRotate = true
+            end
+            if bodyGyro and bodyGyro.Parent then
+                bodyGyro:Destroy()
+                bodyGyro = nil
+            end
         end
-    else
-        if hum and not hum.AutoRotate then
-            hum.AutoRotate = true
-        end
-        if bodyGyro and bodyGyro.Parent then
-            bodyGyro:Destroy()
-            bodyGyro = nil
-        end
+    end)
+    if not ok then
+        warn("[ZepHub AimStep] " .. tostring(err))
     end
 end
 
