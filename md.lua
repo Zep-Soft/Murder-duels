@@ -295,7 +295,8 @@ task.spawn(function()
 end)
 
 local function IsTeammate(p)
-    if not MyTeam or MyTeam == "Lobby" then return false end
+    -- Проверяем тиммейтов только если мы знаем свою команду ('A' или 'B')
+    -- Если MyTeam == "Lobby" или nil, то мы не знаем команду, но всё равно проверяем knownA/B
     if matchData.knownA[p.UserId] and MyTeam == "A" then return true end
     if matchData.knownB[p.UserId] and MyTeam == "B" then return true end
     if p.Team and p.Team.Name then
@@ -308,10 +309,6 @@ local function IsTeammate(p)
         return true
     end
     return false
-end
-
-local function AmIReady()
-    return MyTeam ~= nil and MyTeam ~= "Lobby"
 end
 
 task.spawn(function()
@@ -404,8 +401,8 @@ FOVDotC.CornerRadius = UDim.new(1, 0)
 FOVDotC.Parent = FOVDot
 
 local function UpdateFOVVisibility()
-    FOVCircle.Visible = Config.AimLock and AmIReady()
-    FOVDot.Visible = Config.AimLock and AmIReady()
+    FOVCircle.Visible = Config.AimLock
+    FOVDot.Visible = Config.AimLock
 end
 
 local Main = Instance.new("Frame")
@@ -1018,8 +1015,6 @@ local function HasLineOfSight(targetChar)
 end
 
 local function GetClosestTarget()
-    if not AmIReady() then return nil, nil end
-
     local cam = workspace.CurrentCamera
     local myChar = plr.Character
     if not myChar then return nil, nil end
@@ -1110,7 +1105,7 @@ RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
     local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     local cam = workspace.CurrentCamera
 
-    if Config.AimLock and AmIReady() then
+    if Config.AimLock then
         local char, part = GetClosestTarget()
         if char and part and cam then
             local aimCF = CFrame.new(cam.CFrame.Position, part.Position)
@@ -1206,7 +1201,7 @@ local function ClearESP()
 end
 
 local function UpdateESP()
-    if not Config.ESP or not AmIReady() then
+    if not Config.ESP then
         if #espObjects > 0 then ClearESP() end
         return
     end
