@@ -1420,54 +1420,72 @@ task.defer(function()
 end)
 
 local dragF = false
-local dragFS = nil
-local dragFP = nil
+local dragStartPos = nil
+local btnStartPos = nil
 local movedF = false
 local touchStartTime = 0
+local dragConn = nil
+
+local function endDrag()
+    dragF = false
+    dragStartPos = nil
+    btnStartPos = nil
+    if dragConn then
+        dragConn:Disconnect()
+        dragConn = nil
+    end
+end
+
+local function startDrag(input)
+    dragF = true
+    movedF = false
+    touchStartTime = tick()
+    dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+    btnStartPos = Vector2.new(FloatBtn.AbsolutePosition.X, FloatBtn.AbsolutePosition.Y)
+
+    dragConn = UIS.InputChanged:Connect(function(changed)
+        if not dragF then return end
+        if changed.UserInputType ~= Enum.UserInputType.MouseMovement
+        and changed.UserInputType ~= Enum.UserInputType.Touch then return end
+
+        local cur = Vector2.new(changed.Position.X, changed.Position.Y)
+        local delta = cur - dragStartPos
+        if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then
+            movedF = true
+        end
+        if not movedF then return end
+
+        local vp = workspace.CurrentCamera.ViewportSize
+        local btnSize = FloatBtn.AbsoluteSize
+        local newX = math.clamp(btnStartPos.X + delta.X, 0, vp.X - btnSize.X)
+        local newY = math.clamp(btnStartPos.Y + delta.Y, 0, vp.Y - btnSize.Y)
+        FloatBtn.Position = UDim2.fromOffset(newX, newY)
+    end)
+end
 
 FloatBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragF = true
-        movedF = false
-        touchStartTime = tick()
-        dragFS = Vector2.new(input.Position.X, input.Position.Y)
-        dragFP = Vector2.new(FloatBtn.AbsolutePosition.X, FloatBtn.AbsolutePosition.Y)
+    if input.UserInputType == Enum.UserInputType.Touch
+    or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        startDrag(input)
     end
 end)
 
 FloatBtn.InputEnded:Connect(function(input)
-    if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
-        return
-    end
+    if input.UserInputType ~= Enum.UserInputType.Touch
+    and input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+
     local wasMove = movedF
     local duration = tick() - touchStartTime
-    dragF = false
-    dragFS = nil
-    dragFP = nil
-    movedF = false
+    endDrag()
+
     if wasMove then return end
-    if duration > 1.5 then return end
+    if duration > 1.0 then return end
+
     if uiOpen then
         CloseUI()
     else
         OpenUI()
     end
-end)
-
-UIS.InputChanged:Connect(function(input)
-    if not dragF then return end
-    if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseMovement then
-        return
-    end
-    local cur = Vector2.new(input.Position.X, input.Position.Y)
-    local d = cur - dragFS
-    if math.abs(d.X) > 5 or math.abs(d.Y) > 5 then movedF = true end
-    if not movedF then return end
-    local vp = workspace.CurrentCamera.ViewportSize
-    local btnSize = FloatBtn.AbsoluteSize
-    local newX = math.clamp(dragFP.X + d.X, 0, vp.X - btnSize.X)
-    local newY = math.clamp(dragFP.Y + d.Y, 0, vp.Y - btnSize.Y)
-    FloatBtn.Position = UDim2.fromOffset(newX, newY)
 end)
 
 local dragM = false
