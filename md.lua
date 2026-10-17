@@ -4,9 +4,6 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local TextChatService = game:GetService("TextChatService")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local StarterGui = game:GetService("StarterGui")
 local plr = Players.LocalPlayer
 
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
@@ -60,96 +57,6 @@ if _G.ZepHub_Loaded then
 end
 _G.ZepHub_Loaded = true
 
-pcall(function()
-    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(1)
-        pcall(function()
-            local cg = game:GetService("CoreGui")
-            local pl = cg:FindFirstChild("PlayerList")
-            if pl and pl:IsA("GuiObject") then
-                pl.Visible = false
-            end
-        end)
-    end
-end)
-
-task.spawn(function()
-    local pg = plr:WaitForChild("PlayerGui", 15)
-    if not pg then return end
-    while true do
-        task.wait(0.2)
-        pcall(function()
-            local hud = pg:FindFirstChild("HUD")
-            if hud then
-                for _, d in ipairs(hud:GetDescendants()) do
-                    if d.Name == "MatchLeaderboard" and d:IsA("GuiObject") then
-                        d.Visible = false
-                    end
-                end
-            end
-            local tb = pg:FindFirstChild("TopbarStandard")
-            if tb then
-                for _, d in ipairs(tb:GetDescendants()) do
-                    if d.Name == "PlayerList" and d:IsA("GuiObject") then
-                        d.Visible = false
-                    end
-                end
-            end
-        end)
-    end
-end)
-
-local Theme = {
-    Bg       = Color3.fromRGB(10, 10, 16),
-    Surface  = Color3.fromRGB(18, 18, 28),
-    Surface2 = Color3.fromRGB(24, 24, 36),
-    Hover    = Color3.fromRGB(34, 34, 50),
-    Accent   = Color3.fromRGB(255, 50, 100),
-    Accent2  = Color3.fromRGB(130, 70, 255),
-    Accent3  = Color3.fromRGB(50, 200, 255),
-    Text     = Color3.fromRGB(245, 245, 255),
-    TextDim  = Color3.fromRGB(130, 130, 160),
-    Stroke   = Color3.fromRGB(45, 45, 65),
-    On       = Color3.fromRGB(255, 50, 100),
-    Off      = Color3.fromRGB(42, 42, 58),
-    Green    = Color3.fromRGB(60, 220, 130),
-    Gold     = Color3.fromRGB(255, 200, 60),
-    Purple   = Color3.fromRGB(180, 100, 255),
-    Blue     = Color3.fromRGB(90, 180, 255),
-    Lobby    = Color3.fromRGB(160, 160, 180),
-}
-
-local FOV_SIZE = 150
-local RENDER_PRIORITY = 3000
-local HOLD_MULT = 1.0
-local HOLD_TIME = 0.15
-
-local Config = {
-    AimLock = false,
-    HeadChance = 75,
-    ESP = false,
-    IgnoreWalls = false,
-}
-
-local MyTeam = nil
-local MyTeamColor = nil
-local CurrentTarget = nil
-local lastValidTime = 0
-local cachedTargetPlayer = nil
-
-local bodyGyro = nil
-local lastHopTime = 0
-local HOP_COOLDOWN = 5
-
-local matchData = {
-    knownA = {},
-    knownB = {},
-}
-
 local marker = Instance.new("Part")
 marker.Name = "ZepHubMarker"
 marker.Size = Vector3.new(0.1, 0.1, 0.1)
@@ -161,7 +68,7 @@ marker.CanQuery = false
 marker.CanTouch = false
 marker.Parent = workspace.CurrentCamera
 
-task.spawn(function()
+local markerThread = task.spawn(function()
     while marker and marker.Parent do
         task.wait(0.5)
         local myChar = plr.Character
@@ -172,7 +79,7 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function()
+local resetThread = task.spawn(function()
     while true do
         task.wait(10)
         pcall(function()
@@ -196,45 +103,54 @@ task.spawn(function()
     end
 end)
 
-local function SetupBodyRotation(hrp)
-    if bodyGyro and bodyGyro.Parent then
-        bodyGyro:Destroy()
-    end
-    bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.Name = "ZepBodyGyro"
-    bodyGyro.MaxTorque = Vector3.new(0, 1e6, 0)
-    bodyGyro.P = 3000
-    bodyGyro.D = 500
-    bodyGyro.CFrame = hrp.CFrame
-    bodyGyro.Parent = hrp
-end
+local Theme = {
+    Bg       = Color3.fromRGB(10, 10, 16),
+    Surface  = Color3.fromRGB(18, 18, 28),
+    Surface2 = Color3.fromRGB(24, 24, 36),
+    Hover    = Color3.fromRGB(34, 34, 50),
+    Accent   = Color3.fromRGB(255, 50, 100),
+    Accent2  = Color3.fromRGB(130, 70, 255),
+    Accent3  = Color3.fromRGB(50, 200, 255),
+    Text     = Color3.fromRGB(245, 245, 255),
+    TextDim  = Color3.fromRGB(130, 130, 160),
+    Stroke   = Color3.fromRGB(45, 45, 65),
+    On       = Color3.fromRGB(255, 50, 100),
+    Off      = Color3.fromRGB(42, 42, 58),
+    Green    = Color3.fromRGB(60, 220, 130),
+}
 
-plr.CharacterAdded:Connect(function(char)
-    task.wait(0.1)
-    local hrp = char:WaitForChild("HumanoidRootPart", 5)
-    if hrp then SetupBodyRotation(hrp) end
-end)
+local FOV_SIZE = 250
+local RENDER_PRIORITY = 3000
+local HOLD_MULT = 2.0
+local HOLD_TIME = 1.0
 
-if plr.Character then
-    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then SetupBodyRotation(hrp) end
-end
+local Config = {
+    AimLock = false,
+    AimHold = false,
+    HeadChance = 75,
+    ESP = false,
+    AntiAFK = false,
+    IgnoreWalls = false,
+}
 
-local function ParseTeamFromText(text)
-    if not text then return nil end
-    if text:find("'Lobby'", 1, true) then return "Lobby" end
-    if text:find("'A'", 1, true) then return "A" end
-    if text:find("'B'", 1, true) then return "B" end
-    return nil
-end
+local MyTeam = nil
+local MyTeamColor = nil
+local CurrentTarget = nil
+local lastValidTime = 0
+local cachedTargetPlayer = nil
 
 local function TrySetTeam(text)
-    local newTeam = ParseTeamFromText(text)
+    if not text then return end
+    local newTeam = nil
+    if text:find("'A'", 1, true) or text:find('"A"', 1, true) then
+        newTeam = "A"
+    elseif text:find("'B'", 1, true) or text:find('"B"', 1, true) then
+        newTeam = "B"
+    end
     if newTeam and newTeam ~= MyTeam then
         MyTeam = newTeam
         CurrentTarget = nil
         cachedTargetPlayer = nil
-        UpdateFOVVisibility()
     end
 end
 
@@ -248,7 +164,7 @@ local function ScanPlayerGuiForTeam()
     local playerGui = plr:FindFirstChildOfClass("PlayerGui")
     if not playerGui then return end
     for _, gui in pairs(playerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "ZepHubUI" then
+        if gui:IsA("ScreenGui") then
             for _, obj in pairs(gui:GetDescendants()) do
                 if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
                     TrySetTeam(obj.Text)
@@ -260,7 +176,7 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.5)
         if not MyTeam then ScanPlayerGuiForTeam() end
     end
 end)
@@ -273,14 +189,12 @@ local function UpdateTeamFromRoblox()
                 MyTeam = "A"
                 CurrentTarget = nil
                 cachedTargetPlayer = nil
-                UpdateFOVVisibility()
             end
         elseif n == "B" or n:find("B") then
             if MyTeam ~= "B" then
                 MyTeam = "B"
                 CurrentTarget = nil
                 cachedTargetPlayer = nil
-                UpdateFOVVisibility()
             end
         end
         MyTeamColor = plr.TeamColor
@@ -295,10 +209,7 @@ task.spawn(function()
 end)
 
 local function IsTeammate(p)
-    -- Проверяем тиммейтов только если мы знаем свою команду ('A' или 'B')
-    -- Если MyTeam == "Lobby" или nil, то мы не знаем команду, но всё равно проверяем knownA/B
-    if matchData.knownA[p.UserId] and MyTeam == "A" then return true end
-    if matchData.knownB[p.UserId] and MyTeam == "B" then return true end
+    if not MyTeam then return false end
     if p.Team and p.Team.Name then
         local n = p.Team.Name:upper()
         if n == MyTeam then return true end
@@ -310,36 +221,6 @@ local function IsTeammate(p)
     end
     return false
 end
-
-task.spawn(function()
-    local rs = game:GetService("ReplicatedStorage")
-    local matchRemotes = rs:FindFirstChild("MatchRemotes")
-    if not matchRemotes then return end
-    local state = matchRemotes:FindFirstChild("State")
-    if not state or not state:IsA("RemoteEvent") then return end
-
-    state.OnClientEvent:Connect(function(_, payload)
-        if type(payload) ~= "table" then return end
-        if payload.t == "MatchEnded" then
-            local function store(list, side)
-                if type(list) ~= "table" then return end
-                for _, p in pairs(list) do
-                    if type(p) == "table" and p.UserId then
-                        if side == "A" then
-                            matchData.knownA[p.UserId] = true
-                            matchData.knownB[p.UserId] = nil
-                        else
-                            matchData.knownB[p.UserId] = true
-                            matchData.knownA[p.UserId] = nil
-                        end
-                    end
-                end
-            end
-            store(payload.playersA, "A")
-            store(payload.playersB, "B")
-        end
-    end)
-end)
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ZepHubUI"
@@ -382,7 +263,7 @@ FOVGradient.Parent = FOVStroke
 
 task.spawn(function()
     while FOVCircle and FOVCircle.Parent do
-        task.wait(0.1)
+        task.wait(0.05)
         FOVGradient.Rotation = (FOVGradient.Rotation + 5) % 360
     end
 end)
@@ -401,15 +282,15 @@ FOVDotC.CornerRadius = UDim.new(1, 0)
 FOVDotC.Parent = FOVDot
 
 local function UpdateFOVVisibility()
-    FOVCircle.Visible = Config.AimLock
-    FOVDot.Visible = Config.AimLock
+    local visible = (Config.AimLock or Config.AimHold)
+    FOVCircle.Visible = visible
+    FOVDot.Visible = visible
 end
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0.5, 0, 0.65, 0)
 Main.Position = UDim2.new(0.25, 0, 0.175, 0)
 Main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
-Main.BackgroundTransparency = 0
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
 Main.Visible = true
@@ -549,13 +430,13 @@ Version.ZIndex = 3
 Version.Parent = TopBar
 
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 32, 0, 32)
-MinBtn.Position = UDim2.new(1, -80, 0.5, -16)
-MinBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
+MinBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
+MinBtn.Position = UDim2.new(0.82, 0, 0.15, 0)
+MinBtn.BackgroundColor3 = Theme.Surface2
 MinBtn.Text = "−"
-MinBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+MinBtn.TextColor3 = Theme.Text
 MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 22
+MinBtn.TextSize = 24
 MinBtn.TextScaled = false
 MinBtn.BorderSizePixel = 0
 MinBtn.AutoButtonColor = false
@@ -567,13 +448,13 @@ MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 32, 0, 32)
-CloseBtn.Position = UDim2.new(1, -42, 0.5, -16)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
+CloseBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
+CloseBtn.Position = UDim2.new(0.93, 0, 0.15, 0)
+CloseBtn.BackgroundColor3 = Theme.Surface2
 CloseBtn.Text = "×"
-CloseBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
+CloseBtn.TextColor3 = Theme.Text
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 22
+CloseBtn.TextSize = 24
 CloseBtn.TextScaled = false
 CloseBtn.BorderSizePixel = 0
 CloseBtn.AutoButtonColor = false
@@ -592,21 +473,21 @@ CloseBtn.MouseEnter:Connect(function()
 end)
 CloseBtn.MouseLeave:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Color3.fromRGB(34, 34, 50),
-        TextColor3 = Color3.fromRGB(245, 245, 255),
+        BackgroundColor3 = Theme.Surface2,
+        TextColor3 = Theme.Text,
     }):Play()
 end)
 
 MinBtn.MouseEnter:Connect(function()
     TweenService:Create(MinBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Color3.fromRGB(255, 50, 100),
+        BackgroundColor3 = Theme.Accent,
         TextColor3 = Color3.fromRGB(255, 255, 255),
     }):Play()
 end)
 MinBtn.MouseLeave:Connect(function()
     TweenService:Create(MinBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Color3.fromRGB(34, 34, 50),
-        TextColor3 = Color3.fromRGB(245, 245, 255),
+        BackgroundColor3 = Theme.Surface2,
+        TextColor3 = Theme.Text,
     }):Play()
 end)
 
@@ -645,15 +526,9 @@ SideLineG.Parent = SideLine
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(0.72, 0, 0.87, 0)
 Content.Position = UDim2.new(0.28, 0, 0.13, 0)
-Content.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
-Content.BackgroundTransparency = 0
-Content.BorderSizePixel = 0
-Content.ZIndex = 4
+Content.BackgroundTransparency = 1
+Content.ZIndex = 5
 Content.Parent = Main
-
-local ContentC = Instance.new("UICorner")
-ContentC.CornerRadius = UDim.new(0, 18)
-ContentC.Parent = Content
 
 local Pages = {}
 
@@ -672,15 +547,15 @@ local function MakePage(name)
     P.Parent = Content
 
     local Pad = Instance.new("UIPadding")
-    Pad.PaddingTop = UDim.new(0, 12)
-    Pad.PaddingBottom = UDim.new(0, 12)
-    Pad.PaddingLeft = UDim.new(0, 12)
-    Pad.PaddingRight = UDim.new(0, 12)
+    Pad.PaddingTop = UDim.new(0, 10)
+    Pad.PaddingBottom = UDim.new(0, 10)
+    Pad.PaddingLeft = UDim.new(0, 10)
+    Pad.PaddingRight = UDim.new(0, 10)
     Pad.Parent = P
 
     local Layout = Instance.new("UIListLayout")
     Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 10)
+    Layout.Padding = UDim.new(0, 8)
     Layout.Parent = P
 
     Pages[name] = P
@@ -820,18 +695,12 @@ local function MakeSection(parent, text)
     S.Size = UDim2.new(1, 0, 0, 20)
     S.BackgroundTransparency = 1
     S.Text = string.upper(text)
-    S.TextColor3 = Theme.Accent3
+    S.TextColor3 = Theme.Accent
     S.Font = Enum.Font.GothamBold
-    S.TextSize = 11
+    S.TextSize = 10
     S.TextXAlignment = Enum.TextXAlignment.Left
     S.ZIndex = 6
     S.Parent = parent
-
-    local SStroke = Instance.new("UIStroke")
-    SStroke.Color = Color3.fromRGB(0, 0, 0)
-    SStroke.Thickness = 1
-    SStroke.Transparency = 0.5
-    SStroke.Parent = S
 end
 
 local function MakeToggle(parent, text, default, callback)
@@ -848,16 +717,16 @@ local function MakeToggle(parent, text, default, callback)
 
     local CG = Instance.new("UIGradient")
     CG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 36, 54)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 26, 40)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
     })
     CG.Rotation = 45
     CG.Parent = C
 
     local CS = Instance.new("UIStroke")
-    CS.Color = Color3.fromRGB(60, 60, 85)
+    CS.Color = Theme.Stroke
     CS.Thickness = 1
-    CS.Transparency = 0.2
+    CS.Transparency = 0.4
     CS.Parent = C
 
     local Lbl = Instance.new("TextLabel")
@@ -941,27 +810,6 @@ local function MakeButton(parent, text, color, callback)
     local BC = Instance.new("UICorner")
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
-
-    local BG = Instance.new("UIGradient")
-    BG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, color or Theme.Accent),
-        ColorSequenceKeypoint.new(1, Theme.Accent2),
-    })
-    BG.Rotation = 45
-    BG.Parent = Btn
-
-    local BtnStroke = Instance.new("UIStroke")
-    BtnStroke.Color = Color3.fromRGB(255, 255, 255)
-    BtnStroke.Thickness = 1
-    BtnStroke.Transparency = 0.85
-    BtnStroke.Parent = Btn
-
-    Btn.MouseEnter:Connect(function()
-        TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Transparency = 0.5}):Play()
-    end)
-    Btn.MouseLeave:Connect(function()
-        TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Transparency = 0.85}):Play()
-    end)
 
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
@@ -1099,31 +947,29 @@ local function GetClosestTarget()
     return nil, nil
 end
 
+local aimHeld = false
+UIS.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then aimHeld = true end
+end)
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then aimHeld = false end
+end)
+
 RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
-    local myChar = plr.Character
-    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-    local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local cam = workspace.CurrentCamera
-
-    if Config.AimLock then
+    if Config.AimLock or (Config.AimHold and aimHeld) then
         local char, part = GetClosestTarget()
-        if char and part and cam then
-            local aimCF = CFrame.new(cam.CFrame.Position, part.Position)
-            cam.CFrame = aimCF
-
+        if char and part then
+            local cam = workspace.CurrentCamera
+            cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
+            local myChar = plr.Character
+            local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
             if hum then
                 hum.AutoRotate = false
             end
-
-            if bodyGyro and bodyGyro.Parent and hrp then
-                local look = aimCF.LookVector
-                local flatLook = Vector3.new(look.X, 0, look.Z)
-                if flatLook.Magnitude > 0.001 then
-                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flatLook.Unit)
-                end
-            end
         end
     else
+        local myChar = plr.Character
+        local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
         if hum and not hum.AutoRotate then
             hum.AutoRotate = true
         end
@@ -1131,8 +977,12 @@ RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
 end)
 
 MakeSection(PageMain, "Aim Assist")
-MakeToggle(PageMain, "Aim Lock", false, function(v)
+MakeToggle(PageMain, "Aim Lock (всегда)", false, function(v)
     Config.AimLock = v
+    UpdateFOVVisibility()
+end)
+MakeToggle(PageMain, "Aim Hold (на ПКМ)", false, function(v)
+    Config.AimHold = v
     UpdateFOVVisibility()
 end)
 MakeToggle(PageMain, "Игнорировать стены", false, function(v)
@@ -1141,13 +991,12 @@ end)
 
 MakeSection(PageMain, "Статус")
 local TeamLabel = Instance.new("TextLabel")
-TeamLabel.Size = UDim2.new(1, 0, 0, 34)
+TeamLabel.Size = UDim2.new(1, 0, 0, 30)
 TeamLabel.BackgroundColor3 = Theme.Surface2
 TeamLabel.Text = "Команда: определяется..."
-TeamLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeamLabel.TextColor3 = Theme.Text
 TeamLabel.Font = Enum.Font.GothamMedium
 TeamLabel.TextSize = 12
-TeamLabel.TextXAlignment = Enum.TextXAlignment.Center
 TeamLabel.ZIndex = 6
 TeamLabel.Parent = PageMain
 
@@ -1155,11 +1004,13 @@ local TLC = Instance.new("UICorner")
 TLC.CornerRadius = UDim.new(0, 10)
 TLC.Parent = TeamLabel
 
-local TLStroke = Instance.new("UIStroke")
-TLStroke.Color = Theme.Stroke
-TLStroke.Thickness = 1
-TLStroke.Transparency = 0.4
-TLStroke.Parent = TeamLabel
+local TeamGrad = Instance.new("UIGradient")
+TeamGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+})
+TeamGrad.Rotation = 45
+TeamGrad.Parent = TeamLabel
 
 task.spawn(function()
     local lastTeam = nil
@@ -1167,15 +1018,9 @@ task.spawn(function()
         task.wait(1)
         if MyTeam ~= lastTeam then
             lastTeam = MyTeam
-            if MyTeam == "A" then
-                TeamLabel.Text = "Команда: A"
-                TeamLabel.TextColor3 = Color3.fromRGB(255, 100, 140)
-            elseif MyTeam == "B" then
-                TeamLabel.Text = "Команда: B"
-                TeamLabel.TextColor3 = Color3.fromRGB(100, 220, 255)
-            elseif MyTeam == "Lobby" then
-                TeamLabel.Text = "В лобби — аим спит"
-                TeamLabel.TextColor3 = Theme.Lobby
+            if MyTeam then
+                TeamLabel.Text = "Команда: " .. MyTeam
+                TeamLabel.TextColor3 = Theme.Green
             else
                 TeamLabel.Text = "Команда: не определена"
                 TeamLabel.TextColor3 = Theme.TextDim
@@ -1241,155 +1086,17 @@ task.spawn(function()
     end
 end)
 
-local function HopServer()
-    local now = tick()
-    if now - lastHopTime < HOP_COOLDOWN then
-        local left = math.ceil(HOP_COOLDOWN - (now - lastHopTime))
-        return false, "Подожди " .. left .. " сек"
-    end
-    lastHopTime = now
-
-    local ok, err = pcall(function()
-        local url = string.format(
-            "https://games.roblox.com/v1/games/%d/servers/Public?limit=100",
-            game.PlaceId
-        )
-        local response = game:HttpGet(url)
-        local data = HttpService:JSONDecode(response)
-        if not data or not data.data then
-            error("Нет данных от Roblox API")
-        end
-
-        local candidates = {}
-        for _, srv in ipairs(data.data) do
-            if srv.id and srv.id ~= game.JobId and srv.playing < srv.maxPlayers then
-                table.insert(candidates, srv)
-            end
-        end
-
-        if #candidates == 0 then
-            error("Нет свободных серверов")
-        end
-
-        local target = candidates[math.random(1, #candidates)]
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, target.id, plr)
-    end)
-
-    if not ok then
-        return false, tostring(err)
-    end
-    return true, "Хоп..."
-end
-
-local function showToast(text, color)
-    local old = ScreenGui:FindFirstChild("ZepToast")
-    if old then old:Destroy() end
-
-    local T = Instance.new("TextLabel")
-    T.Name = "ZepToast"
-    T.Size = UDim2.new(0, 0, 0, 40)
-    T.AutomaticSize = Enum.AutomaticSize.X
-    T.Position = UDim2.new(0.5, 0, 0.9, 0)
-    T.AnchorPoint = Vector2.new(0.5, 0)
-    T.BackgroundColor3 = Color3.fromRGB(24, 24, 36)
-    T.BackgroundTransparency = 0
-    T.BorderSizePixel = 0
-    T.Text = "  " .. text .. "  "
-    T.TextColor3 = color or Color3.fromRGB(60, 220, 130)
-    T.Font = Enum.Font.GothamBold
-    T.TextSize = 12
-    T.ZIndex = 50
-    T.Parent = ScreenGui
-
-    local TC = Instance.new("UICorner")
-    TC.CornerRadius = UDim.new(0, 10)
-    TC.Parent = T
-
-    local TS = Instance.new("UIStroke")
-    TS.Color = color or Color3.fromRGB(60, 220, 130)
-    TS.Thickness = 1
-    TS.Parent = T
-
-    T.Position = UDim2.new(0.5, 0, 1, 20)
-    TweenService:Create(T, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {
-        Position = UDim2.new(0.5, 0, 0.9, 0),
-    }):Play()
-
-    task.delay(2.5, function()
-        if T and T.Parent then
-            local t = TweenService:Create(T, TweenInfo.new(0.2), {
-                Position = UDim2.new(0.5, 0, 1, 20),
-                BackgroundTransparency = 1,
-            })
-            t:Play()
-            t.Completed:Wait()
-            if T and T.Parent then T:Destroy() end
-        end
-    end)
-end
-
 MakeSection(PageConfig, "Управление")
 MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 180, 50), function()
     MyTeam = nil
     MyTeamColor = nil
     CurrentTarget = nil
     cachedTargetPlayer = nil
-    UpdateFOVVisibility()
 end)
-
-MakeButton(PageConfig, "Server Hop", Color3.fromRGB(60, 200, 255), function()
-    local ok, msg = HopServer()
-    if ok then
-        showToast(msg, Color3.fromRGB(60, 200, 255))
-    else
-        showToast("Ошибка: " .. msg, Color3.fromRGB(255, 60, 80))
-    end
-end)
-
-local uiOpen = true
-local uiAnimating = false
-local baseSize = UDim2.new(0.5, 0, 0.65, 0)
-local basePos = UDim2.new(0.25, 0, 0.175, 0)
-
-local function OpenUI()
-    if uiOpen or uiAnimating then return end
-    uiAnimating = true
-    Main.Visible = true
-    Main.Size = UDim2.new(0.4, 0, 0.5, 0)
-    Main.Position = UDim2.new(0.3, 0, 0.25, 0)
-    Main.BackgroundTransparency = 1
-    local t = TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-        Size = baseSize,
-        Position = basePos,
-        BackgroundTransparency = 0,
-    })
-    t:Play()
-    t.Completed:Wait()
-    Main.BackgroundTransparency = 0
-    uiOpen = true
-    uiAnimating = false
-end
-
-local function CloseUI()
-    if not uiOpen or uiAnimating then return end
-    uiAnimating = true
-    local t = TweenService:Create(Main, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-        Size = UDim2.new(0.4, 0, 0.5, 0),
-        Position = UDim2.new(0.3, 0, 0.25, 0),
-        BackgroundTransparency = 1,
-    })
-    t:Play()
-    t.Completed:Wait()
-    Main.Visible = false
-    Main.Size = baseSize
-    Main.Position = basePos
-    Main.BackgroundTransparency = 0
-    uiOpen = false
-    uiAnimating = false
-end
 
 local function UnloadAll()
     Config.AimLock = false
+    Config.AimHold = false
     Config.ESP = false
     pcall(function()
         RunService:UnbindFromRenderStep("ZepAimStep")
@@ -1398,10 +1105,6 @@ local function UnloadAll()
     if marker then
         pcall(function() marker:Destroy() end)
         marker = nil
-    end
-    if bodyGyro and bodyGyro.Parent then
-        pcall(function() bodyGyro:Destroy() end)
-        bodyGyro = nil
     end
     local myChar = plr.Character
     local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
@@ -1515,19 +1218,17 @@ end)
 
 FloatBtn.MouseButton1Click:Connect(function()
     if movedF then return end
-    if uiOpen then
-        CloseUI()
-    else
-        OpenUI()
-    end
+    Main.Visible = not Main.Visible
 end)
 
 local dragM = false
 local dragMS, dragMP
+local dragMoved = false
 
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragM = true
+        dragMoved = false
         dragMS = input.Position
         dragMP = Main.Position
     end
@@ -1540,13 +1241,13 @@ end)
 UIS.InputChanged:Connect(function(input)
     if dragM and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local d = input.Position - dragMS
+        if math.abs(d.X) > 2 or math.abs(d.Y) > 2 then dragMoved = true end
         Main.Position = UDim2.new(dragMP.X.Scale, dragMP.X.Offset + d.X, dragMP.Y.Scale, dragMP.Y.Offset + d.Y)
-        basePos = Main.Position
     end
 end)
 
 MinBtn.MouseButton1Click:Connect(function()
-    CloseUI()
+    Main.Visible = false
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
