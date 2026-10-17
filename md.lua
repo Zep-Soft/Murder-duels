@@ -12,7 +12,6 @@ local plr = Players.LocalPlayer
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
 local MD_PLACE_ID = 120851538706364
 
--- FIX #1: если скрипт загружен повторно — сначала полностью выгружаем старый
 if _G.ZepHub_Loaded then
     if _G.ZepHub_Unload then
         pcall(_G.ZepHub_Unload)
@@ -71,7 +70,6 @@ end
 
 _G.ZepHub_Loaded = true
 
--- FIX #2: централизованный список всех loop-потоков и соединений, чтобы можно было всё остановить
 local Alive = true
 local Loops = {}
 local Connections = {}
@@ -95,7 +93,6 @@ pcall(function()
     StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 end)
 
--- скрытие PlayerList
 SpawnLoop(function()
     pcall(function()
         local pl = CoreGui:FindFirstChild("PlayerList")
@@ -156,9 +153,9 @@ local Theme = {
 }
 
 local FOV_SIZE = 150
-local RENDER_PRIORITY = 3000
-local HOLD_MULT = 1.0
-local HOLD_TIME = 0.15
+local HOLD_MULT = 1.3
+local HOLD_TIME = 0.25
+local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 1
 
 local Config = {
     AimLock = false,
@@ -172,8 +169,8 @@ local MyTeamColor = nil
 local CurrentTarget = nil
 local lastValidTime = 0
 local cachedTargetPlayer = nil
--- FIX #3: кэш выбранной части тела для текущей цели, чтобы не рандомить каждый кадр
 local cachedTargetPart = nil
+local cachedTargetPartTime = 0
 
 local bodyGyro = nil
 local lastHopTime = 0
@@ -206,25 +203,23 @@ SpawnLoop(function()
     return true
 end)
 
--- FIX #4: reset-цикл теперь с условием Alive, чтобы после выгрузки он не продолжал крутиться
 SpawnLoop(function()
     task.wait(10)
     if not Alive then return false end
     pcall(function()
         local response = game:HttpGet(RESET_URL)
         if response and response:gsub("%s", "") == "RESET" then
-            pcall(function()
-                plr:Kick("Скрипт обновлён. Можете зайти заново")
-            end)
             if _G.ZepHub_Unload then
                 pcall(_G.ZepHub_Unload)
             end
+            pcall(function()
+                plr:Kick("Скрипт обновлён. Можете зайти заново")
+            end)
         end
     end)
     return true
 end)
 
--- FIX #5: правильный MaxTorque — вращаем по всем осям (раньше X/Z = 0 → персонаж не поворачивался)
 local function SetupBodyRotation(hrp)
     if bodyGyro and bodyGyro.Parent then
         bodyGyro:Destroy()
@@ -258,7 +253,6 @@ local function ParseTeamFromText(text)
     return nil
 end
 
--- FIX #6: при смене команды сбрасываем MyTeamColor тоже
 local function SetMyTeam(newTeam)
     if newTeam and newTeam ~= MyTeam then
         MyTeam = newTeam
@@ -281,7 +275,6 @@ TrackConnection(TextChatService.MessageReceived:Connect(function(msg)
     end)
 end))
 
--- FIX #7: валидация — только строки, похожие на реальный выбор команды
 local function ScanPlayerGuiForTeam()
     local playerGui = plr:FindFirstChildOfClass("PlayerGui")
     if not playerGui then return end
@@ -290,7 +283,6 @@ local function ScanPlayerGuiForTeam()
             for _, obj in pairs(gui:GetDescendants()) do
                 if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
                     local t = obj.Text
-                    -- принимаем только точные маркеры, без произвольного совпадения
                     if t:find("'A'", 1, true) or t:find("'B'", 1, true) or t:find("'Lobby'", 1, true) then
                         TrySetTeam(t)
                     end
@@ -307,7 +299,6 @@ SpawnLoop(function()
     return true
 end)
 
--- FIX #8: строгое сравнение команды через Roblox Team (без find("A") по подстроке)
 local function UpdateTeamFromRoblox()
     if plr.Team and plr.Team.Name then
         local n = plr.Team.Name
@@ -329,16 +320,14 @@ SpawnLoop(function()
     return true
 end)
 
--- FIX #9: IsTeammate — строгое сравнение, без find по подстроке
 local function IsTeammate(p)
     if not p then return false end
     if MyTeam == "A" and matchData.knownA[p.UserId] then return true end
     if MyTeam == "B" and matchData.knownB[p.UserId] then return true end
     if p.Team and p.Team.Name and MyTeam then
-        local n = p.Team.Name
-        if n == MyTeam then return true end
+        if p.Team.Name == MyTeam then return true end
     end
-    if MyTeamColor and p.TeamColor == MyTeamColor then
+    if (MyTeam == "A" or MyTeam == "B") and MyTeamColor and p.TeamColor == MyTeamColor then
         return true
     end
     return false
@@ -382,7 +371,6 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = CoreGui
 
--- FIX #10: UpdateFOVVisibility теперь безопасна к nil-объектам после Unload
 local FOVCircle = Instance.new("Frame")
 FOVCircle.Size = UDim2.new(0, FOV_SIZE * 2, 0, FOV_SIZE * 2)
 FOVCircle.Position = UDim2.new(0.5, -FOV_SIZE, 0.5, -FOV_SIZE)
@@ -961,7 +949,6 @@ local function MakeToggle(parent, text, default, callback)
         TweenService:Create(Knob, TweenInfo.new(0.2), {
             Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10),
         }):Play()
-        -- FIX #11: если callback упадёт, откатываем state обратно
         if callback then
             local ok = pcall(callback, state)
             if not ok then
@@ -977,7 +964,6 @@ local function MakeToggle(parent, text, default, callback)
     end))
 end
 
--- FIX #12: добавлен слайдер (для HeadChance и т.п.)
 local function MakeSlider(parent, text, minV, maxV, default, callback)
     local C = Instance.new("Frame")
     C.Size = UDim2.new(1, 0, 0, 60)
@@ -997,7 +983,7 @@ local function MakeSlider(parent, text, minV, maxV, default, callback)
     CS.Parent = C
 
     local Lbl = Instance.new("TextLabel")
-    Lbl.Size = UDim2.new(1, -20, 0, 22)
+    Lbl.Size = UDim2.new(1, -80, 0, 22)
     Lbl.Position = UDim2.new(0, 14, 0, 6)
     Lbl.BackgroundTransparency = 1
     Lbl.Text = text
@@ -1073,6 +1059,7 @@ local function MakeSlider(parent, text, minV, maxV, default, callback)
         end
     end))
     TrackConnection(UIS.InputChanged:Connect(function(input)
+        if not Alive then return end
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
             or input.UserInputType == Enum.UserInputType.Touch) then
             setFromX(input.Position.X)
@@ -1132,22 +1119,19 @@ MakeTab("Главная", "аим и наводка", "Main")
 MakeTab("Визуалы", "esp", "Visuals")
 MakeTab("Конфиг", "настройки", "Config")
 
--- FIX #13: GetTargetPart теперь умеет учитывать LOS и конкретную часть; возвращает nil, если ничего не видно
 local function HasLineOfSight(targetChar, targetPart)
     local myChar = plr.Character
     if not myChar or not myChar.Parent then return false end
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-    if not myHRP or not targetPart then return false end
+    if not myHRP or not targetPart or not targetPart.Parent then return false end
     local ok, result = pcall(function()
         local rayParams = RaycastParams.new()
         rayParams.FilterDescendantsInstances = {myChar, targetChar}
         rayParams.FilterType = Enum.RaycastFilterType.Exclude
-        local dir = targetPart.Position - myHRP.Position
-        return workspace:Raycast(myHRP.Position, dir, rayParams)
+        return workspace:Raycast(myHRP.Position, targetPart.Position - myHRP.Position, rayParams)
     end)
     if not ok then return false end
-    if result then return false end
-    return true
+    return result == nil
 end
 
 local function GetTargetPart(targetChar, requireLOS)
@@ -1164,14 +1148,11 @@ local function GetTargetPart(targetChar, requireLOS)
     if requireLOS then
         if primary and HasLineOfSight(targetChar, primary) then return primary end
         if fallback and HasLineOfSight(targetChar, fallback) then return fallback end
-        return nil
+        return head or torso
     end
     return primary or fallback
 end
 
--- FIX #14: стабильный выбор части — кэшируем на 0.5 сек, чтобы не дёргать голову/торс 60 раз в секунду
-local TARGET_PART_REFRESH = 0.5
-local cachedTargetPartTime = 0
 local function GetTargetPartStable(targetChar)
     local now = tick()
     if cachedTargetPart and (now - cachedTargetPartTime) < TARGET_PART_REFRESH
@@ -1182,6 +1163,8 @@ local function GetTargetPartStable(targetChar)
     cachedTargetPartTime = now
     return cachedTargetPart
 end
+
+local TARGET_PART_REFRESH = 0.5
 
 local function GetClosestTarget()
     local cam = workspace.CurrentCamera
@@ -1206,22 +1189,24 @@ local function GetClosestTarget()
             end
             if not cachedTargetPlayer or cachedTargetPlayer.Parent ~= Players or IsTeammate(cachedTargetPlayer) then
                 stillValid = false
-            elseif Config.IgnoreWalls and not HasLineOfSight(CurrentTarget, cachedTargetPart or head) then
-                stillValid = false
             end
         end
+
         if stillValid then
             local sp, onScreen = cam:WorldToViewportPoint(head.Position)
-            if onScreen then
-                local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                if d <= FOV_SIZE * HOLD_MULT then
+            local inFront = onScreen or sp.Z > 0
+            local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+            if inFront and d <= FOV_SIZE * HOLD_MULT then
+                local part = GetTargetPartStable(CurrentTarget)
+                if part and part.Parent then
                     lastValidTime = now
-                    return CurrentTarget, GetTargetPartStable(CurrentTarget)
+                    return CurrentTarget, part
                 end
             end
             if now - lastValidTime < HOLD_TIME then
-                if (not Config.IgnoreWalls) or HasLineOfSight(CurrentTarget, cachedTargetPart or head) then
-                    return CurrentTarget, GetTargetPartStable(CurrentTarget)
+                local part = GetTargetPartStable(CurrentTarget)
+                if part and part.Parent then
+                    return CurrentTarget, part
                 end
             end
         end
@@ -1241,7 +1226,8 @@ local function GetClosestTarget()
                 local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
                 if head and targetHRP then
                     local sp, onScreen = cam:WorldToViewportPoint(head.Position)
-                    if onScreen then
+                    local inFront = onScreen or sp.Z > 0
+                    if inFront then
                         local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                         if screenDist <= FOV_SIZE then
                             local worldDist = (targetHRP.Position - myPos).Magnitude
@@ -1259,17 +1245,20 @@ local function GetClosestTarget()
     end
 
     if bestChar then
-        CurrentTarget = bestChar
-        cachedTargetPlayer = Players:GetPlayerFromCharacter(bestChar)
-        cachedTargetPart = GetTargetPart(bestChar, Config.IgnoreWalls)
-        cachedTargetPartTime = now
-        lastValidTime = now
-        return bestChar, cachedTargetPart
+        local part = GetTargetPart(bestChar, Config.IgnoreWalls)
+        if part and part.Parent then
+            CurrentTarget = bestChar
+            cachedTargetPlayer = Players:GetPlayerFromCharacter(bestChar)
+            cachedTargetPart = part
+            cachedTargetPartTime = now
+            lastValidTime = now
+            return bestChar, part
+        end
     end
     return nil, nil
 end
 
-local aimStepConn = RunService.RenderStepped:Connect(function()
+local function AimStep()
     if not Alive then return end
     local myChar = plr.Character
     local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
@@ -1279,18 +1268,13 @@ local aimStepConn = RunService.RenderStepped:Connect(function()
     if Config.AimLock then
         local char, part = GetClosestTarget()
         if char and part and part.Parent and cam then
-            local aimCF = CFrame.new(cam.CFrame.Position, part.Position)
-            cam.CFrame = aimCF
-
-            if hum then
-                hum.AutoRotate = false
-            end
-
+            cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
+            if hum then hum.AutoRotate = false end
             if bodyGyro and bodyGyro.Parent and hrp then
-                local look = aimCF.LookVector
-                local flatLook = Vector3.new(look.X, 0, look.Z)
-                if flatLook.Magnitude > 0.001 then
-                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flatLook.Unit)
+                local look = cam.CFrame.LookVector
+                local flat = Vector3.new(look.X, 0, look.Z)
+                if flat.Magnitude > 0.001 then
+                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flat.Unit)
                 end
             end
         end
@@ -1298,8 +1282,14 @@ local aimStepConn = RunService.RenderStepped:Connect(function()
         if hum and not hum.AutoRotate then
             hum.AutoRotate = true
         end
+        if bodyGyro and bodyGyro.Parent then
+            bodyGyro:Destroy()
+            bodyGyro = nil
+        end
     end
-end)
+end
+
+RunService:BindToRenderStep("ZepAimStep", AIM_PRIORITY, AimStep)
 
 MakeSection(PageMain, "Aim Assist")
 MakeToggle(PageMain, "Aim Lock", false, function(v)
@@ -1308,11 +1298,9 @@ MakeToggle(PageMain, "Aim Lock", false, function(v)
 end)
 MakeToggle(PageMain, "Игнорировать стены", false, function(v)
     Config.IgnoreWalls = v
-    -- сбрасываем кэш части, чтобы пересчитать LOS
     cachedTargetPart = nil
     cachedTargetPartTime = 0
 end)
--- FIX #15: слайдер шанса головы в UI
 MakeSlider(PageMain, "Шанс головы %", 0, 100, Config.HeadChance, function(v)
     Config.HeadChance = v
     cachedTargetPart = nil
@@ -1376,14 +1364,12 @@ local function ClearESP()
     espTargets = {}
 end
 
--- FIX #16: ESP теперь чистит highlight для вышедших игроков, а не только для живых в списке
 local function UpdateESP()
     if not Config.ESP then
         if #espObjects > 0 then ClearESP() end
         return
     end
 
-    -- сначала убираем мёртвые/вышедшие
     local validChars = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= plr and p.Character then validChars[p.Character] = true end
@@ -1394,12 +1380,10 @@ local function UpdateESP()
             espTargets[char] = nil
         end
     end
-    -- чистим список объектов от уже удалённых
     for i = #espObjects, 1, -1 do
         if not espObjects[i].Parent then table.remove(espObjects, i) end
     end
 
-    -- добавляем новые
     for _, p in ipairs(Players:GetPlayers()) do
         local char = p.Character
         if p ~= plr and char and char.Parent and not IsTeammate(p) then
@@ -1458,7 +1442,6 @@ local function HopServer()
         end
 
         local target = candidates[math.random(1, #candidates)]
-        -- FIX #17: явно передаём teleportData и customLoadingScreen
         TeleportService:TeleportToPlaceInstance(game.PlaceId, target.id, plr, nil, nil)
     end)
 
@@ -1468,7 +1451,6 @@ local function HopServer()
     return true, "Хоп..."
 end
 
--- FIX #18: toast ограничен по ширине и обрезается, не вылезает за экран
 local function showToast(text, color)
     if not (ScreenGui and ScreenGui.Parent) then return end
     local old = ScreenGui:FindFirstChild("ZepToast")
@@ -1585,7 +1567,6 @@ local function CloseUI()
     uiAnimating = false
 end
 
--- FIX #19: полная выгрузка — останавливаем все циклы, отвязываем всё, чистим оба GUI
 local function UnloadAll()
     if not Alive then return end
     Alive = false
@@ -1595,7 +1576,6 @@ local function UnloadAll()
     _G.ZepHub_Unload = nil
     _G.ZepHub_UpdateFOV = nil
 
-    pcall(function() if aimStepConn then aimStepConn:Disconnect() end end)
     pcall(function() RunService:UnbindFromRenderStep("ZepAimStep") end)
     pcall(ClearESP)
 
@@ -1763,7 +1743,6 @@ TrackConnection(CloseBtn.MouseButton1Click:Connect(function()
     if Alive then UnloadAll() end
 end))
 
--- FIX #20: InputEnded-«страховка» на случай, если мышь отпущена вне кнопки
 TrackConnection(UIS.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
