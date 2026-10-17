@@ -1042,14 +1042,6 @@ local TLC = Instance.new("UICorner")
 TLC.CornerRadius = UDim.new(0, 10)
 TLC.Parent = TeamLabel
 
-local TeamGrad = Instance.new("UIGradient")
-TeamGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
-})
-TeamGrad.Rotation = 45
-TeamGrad.Parent = TeamLabel
-
 local TLStroke = Instance.new("UIStroke")
 TLStroke.Color = Theme.Stroke
 TLStroke.Thickness = 1
