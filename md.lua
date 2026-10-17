@@ -68,8 +68,8 @@ local defaultSession = {
     HeadChance = 75,
     ESP = false,
     IgnoreWalls = false,
-    FloatXOffset = 0,
-    FloatYOffset = 0,
+    FloatX = 0,
+    FloatY = 0,
     FloatXScale = 0.02,
     FloatYScale = 0.45,
     HasPending = false,
@@ -1338,7 +1338,13 @@ MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), fun
 end)
 
 local FloatBtn = Instance.new("TextButton")
-FloatBtn.Size = UDim2.new(0, 56, 0, 56)
+FloatBtn.Size = UDim2.new(0.08, 0, 0.1, 0)
+FloatBtn.Position = UDim2.new(
+    Session.FloatXScale or 0.02,
+    Session.FloatX or 0,
+    Session.FloatYScale or 0.45,
+    Session.FloatY or 0
+)
 FloatBtn.BackgroundColor3 = Theme.Bg
 FloatBtn.Text = ""
 FloatBtn.BorderSizePixel = 0
@@ -1399,76 +1405,45 @@ local FBIC2 = Instance.new("UICorner")
 FBIC2.CornerRadius = UDim.new(0, 4)
 FBIC2.Parent = FBInner
 
-task.defer(function()
-    local vp = workspace.CurrentCamera.ViewportSize
-    local btnSize = FloatBtn.AbsoluteSize
-    local initX, initY
-    if (Session.FloatXOffset and Session.FloatXOffset ~= 0) or (Session.FloatYOffset and Session.FloatYOffset ~= 0) then
-        initX = Session.FloatXOffset or 0
-        initY = Session.FloatYOffset or 0
-    else
-        initX = (Session.FloatXScale or 0.02) * vp.X
-        initY = (Session.FloatYScale or 0.45) * vp.Y
-    end
-    initX = math.clamp(initX, 0, vp.X - btnSize.X)
-    initY = math.clamp(initY, 0, vp.Y - btnSize.Y)
-    FloatBtn.Position = UDim2.fromOffset(initX, initY)
-end)
-
 local dragF = false
-local dragStart = nil
-local dragBaseOffset = nil
+local dragFS, dragFP
 local movedF = false
-local activeTouch = nil
-local touchStartedOnBtn = false
 
-local function IsPointOnBtn(pos)
-    local ap = FloatBtn.AbsolutePosition
-    local asz = FloatBtn.AbsoluteSize
-    return pos.X >= ap.X and pos.X <= ap.X + asz.X
-        and pos.Y >= ap.Y and pos.Y <= ap.Y + asz.Y
-end
-
-UIS.TouchStarted:Connect(function(touch, gameProcessed)
-    if gameProcessed then return end
-    if not IsPointOnBtn(touch.Position) then return end
-    activeTouch = touch
-    touchStartedOnBtn = true
-    dragF = true
-    movedF = false
-    dragStart = Vector2.new(touch.Position.X, touch.Position.Y)
-    dragBaseOffset = Vector2.new(FloatBtn.Position.X.Offset, FloatBtn.Position.Y.Offset)
+FloatBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragF = true
+        movedF = false
+        dragFS = input.Position
+        dragFP = FloatBtn.Position
+    end
 end)
 
-UIS.TouchMoved:Connect(function(touch, gameProcessed)
-    if not dragF or touch ~= activeTouch then return end
-    local cur = Vector2.new(touch.Position.X, touch.Position.Y)
-    local d = cur - dragStart
-    if math.abs(d.X) > 8 or math.abs(d.Y) > 8 then movedF = true end
-    if not movedF then return end
-    local vp = workspace.CurrentCamera.ViewportSize
-    local btnSize = FloatBtn.AbsoluteSize
-    local newX = math.clamp(dragBaseOffset.X + d.X, 0, vp.X - btnSize.X)
-    local newY = math.clamp(dragBaseOffset.Y + d.Y, 0, vp.Y - btnSize.Y)
-    FloatBtn.Position = UDim2.fromOffset(newX, newY)
+FloatBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragF = false
+    end
 end)
 
-UIS.TouchEnded:Connect(function(touch, gameProcessed)
-    if touch ~= activeTouch then return end
-    local wasOnBtn = touchStartedOnBtn
-    local didMove = movedF
-    dragF = false
-    activeTouch = nil
-    dragStart = nil
-    dragBaseOffset = nil
-    touchStartedOnBtn = false
-    movedF = false
-    if wasOnBtn and not didMove then
-        if uiOpen then
-            CloseUI()
-        else
-            OpenUI()
-        end
+UIS.InputChanged:Connect(function(input)
+    if dragF and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local d = input.Position - dragFS
+        if math.abs(d.X) > 3 or math.abs(d.Y) > 3 then movedF = true end
+        local newX = dragFP.X.Offset + d.X
+        local newY = dragFP.Y.Offset + d.Y
+        local vp = workspace.CurrentCamera.ViewportSize
+        local btnSize = FloatBtn.AbsoluteSize
+        newX = math.clamp(newX, -btnSize.X / 2, vp.X - btnSize.X / 2)
+        newY = math.clamp(newY, -btnSize.Y / 2, vp.Y - btnSize.Y / 2)
+        FloatBtn.Position = UDim2.new(dragFP.X.Scale, newX, dragFP.Y.Scale, newY)
+    end
+end)
+
+FloatBtn.MouseButton1Click:Connect(function()
+    if movedF then return end
+    if uiOpen then
+        CloseUI()
+    else
+        OpenUI()
     end
 end)
 
@@ -1504,10 +1479,10 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 FloatBtn:GetPropertyChangedSignal("Position"):Connect(function()
-    Session.FloatXOffset = FloatBtn.Position.X.Offset
-    Session.FloatYOffset = FloatBtn.Position.Y.Offset
-    Session.FloatXScale = 0
-    Session.FloatYScale = 0
+    Session.FloatX = FloatBtn.Position.X.Offset
+    Session.FloatY = FloatBtn.Position.Y.Offset
+    Session.FloatXScale = FloatBtn.Position.X.Scale
+    Session.FloatYScale = FloatBtn.Position.Y.Scale
     SaveSession()
 end)
 
