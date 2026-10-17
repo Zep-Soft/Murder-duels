@@ -59,6 +59,46 @@ if _G.ZepHub_Loaded then
 end
 _G.ZepHub_Loaded = true
 
+local Theme = {
+    Bg       = Color3.fromRGB(10, 10, 16),
+    Surface  = Color3.fromRGB(18, 18, 28),
+    Surface2 = Color3.fromRGB(24, 24, 36),
+    Hover    = Color3.fromRGB(34, 34, 50),
+    Accent   = Color3.fromRGB(255, 50, 100),
+    Accent2  = Color3.fromRGB(130, 70, 255),
+    Accent3  = Color3.fromRGB(50, 200, 255),
+    Text     = Color3.fromRGB(245, 245, 255),
+    TextDim  = Color3.fromRGB(130, 130, 160),
+    Stroke   = Color3.fromRGB(45, 45, 65),
+    On       = Color3.fromRGB(255, 50, 100),
+    Off      = Color3.fromRGB(42, 42, 58),
+    Green    = Color3.fromRGB(60, 220, 130),
+}
+
+local FOV_SIZE = 150
+local RENDER_PRIORITY = Enum.RenderPriority.Camera.Value + 1
+local HOLD_MULT = 1.15
+local HOLD_TIME = 0.2
+local AIM_SPEED = 20
+
+local Config = {
+    AimLock = false,
+    HeadChance = 75,
+    ESP = false,
+    IgnoreWalls = false,
+}
+
+local MyTeam = nil
+local MyTeamColor = nil
+local CurrentTarget = nil
+local cachedTargetPlayer = nil
+local cachedTargetPart = nil
+local lastValidTime = 0
+
+local bodyGyro = nil
+local lastHopTime = 0
+local HOP_COOLDOWN = 5
+
 local marker = Instance.new("Part")
 marker.Name = "ZepHubMarker"
 marker.Size = Vector3.new(0.1, 0.1, 0.1)
@@ -105,44 +145,6 @@ task.spawn(function()
     end
 end)
 
-local Theme = {
-    Bg       = Color3.fromRGB(10, 10, 16),
-    Surface  = Color3.fromRGB(18, 18, 28),
-    Surface2 = Color3.fromRGB(24, 24, 36),
-    Hover    = Color3.fromRGB(34, 34, 50),
-    Accent   = Color3.fromRGB(255, 50, 100),
-    Accent2  = Color3.fromRGB(130, 70, 255),
-    Accent3  = Color3.fromRGB(50, 200, 255),
-    Text     = Color3.fromRGB(245, 245, 255),
-    TextDim  = Color3.fromRGB(130, 130, 160),
-    Stroke   = Color3.fromRGB(45, 45, 65),
-    On       = Color3.fromRGB(255, 50, 100),
-    Off      = Color3.fromRGB(42, 42, 58),
-    Green    = Color3.fromRGB(60, 220, 130),
-}
-
-local FOV_SIZE = 150
-local RENDER_PRIORITY = 3000
-local HOLD_MULT = 1.0
-local HOLD_TIME = 0.15
-
-local Config = {
-    AimLock = false,
-    HeadChance = 75,
-    ESP = false,
-    IgnoreWalls = false,
-}
-
-local MyTeam = nil
-local MyTeamColor = nil
-local CurrentTarget = nil
-local lastValidTime = 0
-local cachedTargetPlayer = nil
-
-local bodyGyro = nil
-local lastHopTime = 0
-local HOP_COOLDOWN = 5
-
 local function SetupBodyRotation(hrp)
     if bodyGyro and bodyGyro.Parent then
         bodyGyro:Destroy()
@@ -167,82 +169,67 @@ if plr.Character then
     if hrp then SetupBodyRotation(hrp) end
 end
 
-local function TrySetTeam(text)
-    if not text then return end
-    local newTeam = nil
-    if text:find("'A'", 1, true) or text:find('"A"', 1, true) then
-        newTeam = "A"
-    elseif text:find("'B'", 1, true) or text:find('"B"', 1, true) then
-        newTeam = "B"
-    end
-    if newTeam and newTeam ~= MyTeam then
+local function ParseTeamName(raw)
+    if not raw then return nil end
+    local n = raw:upper():gsub("%s", "")
+    if n == "A" or n == "TEAMA" then return "A" end
+    if n == "B" or n == "TEAMB" then return "B" end
+    return nil
+end
+
+local function SetMyTeam(newTeam)
+    if newTeam ~= MyTeam then
         MyTeam = newTeam
         CurrentTarget = nil
         cachedTargetPlayer = nil
+        cachedTargetPart = nil
+    end
+end
+
+local function TrySetTeamFromText(text)
+    if not text then return end
+    if text:find("'A'", 1, true) or text:find('"A"', 1, true) then
+        SetMyTeam("A")
+    elseif text:find("'B'", 1, true) or text:find('"B"', 1, true) then
+        SetMyTeam("B")
     end
 end
 
 TextChatService.MessageReceived:Connect(function(msg)
     pcall(function()
-        TrySetTeam(msg.Text)
+        TrySetTeamFromText(msg.Text)
     end)
-end)
-
-local function ScanPlayerGuiForTeam()
-    local playerGui = plr:FindFirstChildOfClass("PlayerGui")
-    if not playerGui then return end
-    for _, gui in pairs(playerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
-            for _, obj in pairs(gui:GetDescendants()) do
-                if obj:IsA("TextLabel") and obj.Text and obj.Text ~= "" then
-                    TrySetTeam(obj.Text)
-                end
-            end
-        end
-    end
-end
-
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if not MyTeam then ScanPlayerGuiForTeam() end
-    end
 end)
 
 local function UpdateTeamFromRoblox()
     if plr.Team and plr.Team.Name then
-        local n = plr.Team.Name
-        if n == "A" or n:find("A") then
-            if MyTeam ~= "A" then
-                MyTeam = "A"
-                CurrentTarget = nil
-                cachedTargetPlayer = nil
-            end
-        elseif n == "B" or n:find("B") then
-            if MyTeam ~= "B" then
-                MyTeam = "B"
-                CurrentTarget = nil
-                cachedTargetPlayer = nil
-            end
+        local parsed = ParseTeamName(plr.Team.Name)
+        if parsed then
+            SetMyTeam(parsed)
+            MyTeamColor = plr.TeamColor
+        else
+            SetMyTeam(nil)
+            MyTeamColor = nil
         end
-        MyTeamColor = plr.TeamColor
+    else
+        SetMyTeam(nil)
+        MyTeamColor = nil
     end
 end
 
 task.spawn(function()
     while true do
-        task.wait(2)
+        task.wait(1)
         UpdateTeamFromRoblox()
     end
 end)
 
 local function IsTeammate(p)
-    if not MyTeam then return false end
+    if not p or not MyTeam then return false end
+    if p == plr then return true end
     if p.Team and p.Team.Name then
-        local n = p.Team.Name:upper()
-        if n == MyTeam then return true end
-        if n:find("A") and MyTeam == "A" then return true end
-        if n:find("B") and MyTeam == "B" then return true end
+        local parsed = ParseTeamName(p.Team.Name)
+        if parsed and parsed == MyTeam then return true end
     end
     if MyTeamColor and p.TeamColor == MyTeamColor then
         return true
@@ -886,18 +873,8 @@ MakeTab("Главная", "аим и наводка", "Main")
 MakeTab("Визуалы", "esp", "Visuals")
 MakeTab("Конфиг", "настройки", "Config")
 
-local function GetTargetPart(targetChar)
-    local head = targetChar:FindFirstChild("Head")
-    local torso = targetChar:FindFirstChild("UpperTorso")
-        or targetChar:FindFirstChild("Torso")
-        or targetChar:FindFirstChild("LowerTorso")
-        or targetChar:FindFirstChild("HumanoidRootPart")
-    if math.random(1, 100) <= Config.HeadChance then
-        return head or torso
-    else
-        return torso or head
-    end
-end
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local function HasLineOfSight(targetChar)
     local myChar = plr.Character
@@ -906,21 +883,29 @@ local function HasLineOfSight(targetChar)
     if not myHRP then return false end
     local targetHead = targetChar:FindFirstChild("Head")
     if not targetHead then return false end
+    rayParams.FilterDescendantsInstances = { myChar, targetChar }
     local ok, result = pcall(function()
-        local rayParams = RaycastParams.new()
-        rayParams.FilterDescendantsInstances = {myChar}
-        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-        local dir = targetHead.Position - myHRP.Position
-        return workspace:Raycast(myHRP.Position, dir, rayParams)
+        return workspace:Raycast(myHRP.Position, targetHead.Position - myHRP.Position, rayParams)
     end)
     if not ok then return false end
-    if result then
-        if result.Instance:IsDescendantOf(targetChar) then
-            return true
-        end
-        return false
+    return result == nil
+end
+
+local function GetTargetPart(targetChar)
+    if cachedTargetPart and cachedTargetPart.Parent == targetChar then
+        return cachedTargetPart
     end
-    return true
+    local head = targetChar:FindFirstChild("Head")
+    local torso = targetChar:FindFirstChild("UpperTorso")
+        or targetChar:FindFirstChild("Torso")
+        or targetChar:FindFirstChild("LowerTorso")
+        or targetChar:FindFirstChild("HumanoidRootPart")
+    if math.random(1, 100) <= Config.HeadChance then
+        cachedTargetPart = head or torso
+    else
+        cachedTargetPart = torso or head
+    end
+    return cachedTargetPart
 end
 
 local function GetClosestTarget()
@@ -932,41 +917,38 @@ local function GetClosestTarget()
 
     local myPos = myHRP.Position
     local center = cam.ViewportSize / 2
-    local now = tick()
+    local now = os.clock()
 
     if CurrentTarget and CurrentTarget.Parent then
-        local stillValid = true
         local hum = CurrentTarget:FindFirstChildOfClass("Humanoid")
         local head = CurrentTarget:FindFirstChild("Head")
-        if not hum or hum.Health <= 0 or not head then
-            stillValid = false
-        else
+        local valid = hum and hum.Health > 0 and head ~= nil
+        if valid then
             if not cachedTargetPlayer then
                 cachedTargetPlayer = Players:GetPlayerFromCharacter(CurrentTarget)
             end
             if not cachedTargetPlayer or cachedTargetPlayer.Parent ~= Players or IsTeammate(cachedTargetPlayer) then
-                stillValid = false
-            elseif Config.IgnoreWalls and not HasLineOfSight(CurrentTarget) then
-                stillValid = false
+                valid = false
+            elseif (not Config.IgnoreWalls) and not HasLineOfSight(CurrentTarget) then
+                valid = false
             end
         end
-        if stillValid then
+        if valid then
             local sp, onScreen = cam:WorldToViewportPoint(head.Position)
-            if onScreen then
+            if onScreen and sp.Z > 0 then
                 local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                 if d <= FOV_SIZE * HOLD_MULT then
                     lastValidTime = now
                     return CurrentTarget, GetTargetPart(CurrentTarget)
                 end
             end
-            if now - lastValidTime < HOLD_TIME then
-                if (not Config.IgnoreWalls) or HasLineOfSight(CurrentTarget) then
-                    return CurrentTarget, GetTargetPart(CurrentTarget)
-                end
+            if now - lastValidTime < HOLD_TIME and (Config.IgnoreWalls or HasLineOfSight(CurrentTarget)) then
+                return CurrentTarget, GetTargetPart(CurrentTarget)
             end
         end
         CurrentTarget = nil
         cachedTargetPlayer = nil
+        cachedTargetPart = nil
     end
 
     local bestChar = nil
@@ -981,12 +963,12 @@ local function GetClosestTarget()
                 local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
                 if head and targetHRP then
                     local sp, onScreen = cam:WorldToViewportPoint(head.Position)
-                    if onScreen then
+                    if onScreen and sp.Z > 0 then
                         local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                         if screenDist <= FOV_SIZE then
                             local worldDist = (targetHRP.Position - myPos).Magnitude
                             if worldDist < bestDist then
-                                if (not Config.IgnoreWalls) or HasLineOfSight(p.Character) then
+                                if Config.IgnoreWalls or HasLineOfSight(p.Character) then
                                     bestDist = worldDist
                                     bestChar = p.Character
                                     bestPart = GetTargetPart(p.Character)
@@ -1002,39 +984,39 @@ local function GetClosestTarget()
     if bestChar then
         CurrentTarget = bestChar
         cachedTargetPlayer = Players:GetPlayerFromCharacter(bestChar)
+        cachedTargetPart = bestPart
         lastValidTime = now
         return bestChar, bestPart
     end
     return nil, nil
 end
 
-RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
+RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function(dt)
     local myChar = plr.Character
     local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
     local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     local cam = workspace.CurrentCamera
+    if not cam then return end
 
     if Config.AimLock then
         local char, part = GetClosestTarget()
-        if char and part and cam then
-            local aimCF = CFrame.new(cam.CFrame.Position, part.Position)
-            cam.CFrame = aimCF
-
-            if hum then
+        if char and part and part.Parent then
+            local goal = CFrame.new(cam.CFrame.Position, part.Position)
+            cam.CFrame = cam.CFrame:Lerp(goal, math.clamp(dt * AIM_SPEED, 0, 1))
+            if hum and bodyGyro and bodyGyro.Parent and hrp then
                 hum.AutoRotate = false
-            end
-
-            if bodyGyro and bodyGyro.Parent and hrp then
-                local look = aimCF.LookVector
-                local flatLook = Vector3.new(look.X, 0, look.Z)
-                if flatLook.Magnitude > 0.001 then
-                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flatLook.Unit)
+                local look = cam.CFrame.LookVector
+                local flat = Vector3.new(look.X, 0, look.Z)
+                if flat.Magnitude > 0.001 then
+                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + flat.Unit)
                 end
             end
         end
     else
-        if hum and not hum.AutoRotate then
-            hum.AutoRotate = true
+        if hum and not hum.AutoRotate then hum.AutoRotate = true end
+        if bodyGyro and bodyGyro.Parent then
+            bodyGyro:Destroy()
+            bodyGyro = nil
         end
     end
 end)
@@ -1145,7 +1127,7 @@ task.spawn(function()
 end)
 
 local function HopServer()
-    local now = tick()
+    local now = os.clock()
     if now - lastHopTime < HOP_COOLDOWN then
         local left = math.ceil(HOP_COOLDOWN - (now - lastHopTime))
         return false, "Подожди " .. left .. " сек"
@@ -1237,6 +1219,7 @@ MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 18
     MyTeamColor = nil
     CurrentTarget = nil
     cachedTargetPlayer = nil
+    cachedTargetPart = nil
 end)
 
 MakeButton(PageConfig, "Server Hop", Color3.fromRGB(60, 200, 255), function()
@@ -1454,5 +1437,7 @@ end)
 CloseBtn.MouseButton1Click:Connect(function()
     UnloadAll()
 end)
+
+UpdateFOVVisibility()
 
 print("Zep Hub Murder Duels loaded")
