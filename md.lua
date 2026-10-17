@@ -15,8 +15,10 @@ local MD_PLACE_ID = 120851538706364
 local FOV_SIZE = 150
 local HOLD_MULT = 1.3
 local HOLD_TIME = 0.25
-local TARGET_PART_REFRESH = 0.5
-local AIM_PRIORITY = Enum.RenderPriority.Camera.Value + 1
+local SEARCH_INTERVAL = 0.1
+local AIM_PRIORITY = Enum.RenderPriority.Camera.Value - 1
+
+pcall(function() RunService:UnbindFromRenderStep("ZepAimStep") end)
 
 if _G.ZepHub_Loaded then
     if _G.ZepHub_Unload then
@@ -169,10 +171,11 @@ local Config = {
 local MyTeam = nil
 local MyTeamColor = nil
 local CurrentTarget = nil
+local currentTargetPart = nil
 local lastValidTime = 0
+local lastTargetSearch = 0
 local cachedTargetPlayer = nil
 local cachedTargetPart = nil
-local cachedTargetPartTime = 0
 
 local bodyGyro = nil
 local lastHopTime = 0
@@ -257,6 +260,7 @@ local function SetMyTeam(newTeam)
         MyTeam = newTeam
         MyTeamColor = nil
         CurrentTarget = nil
+        currentTargetPart = nil
         cachedTargetPlayer = nil
         cachedTargetPart = nil
         if UpdateFOVVisibility then UpdateFOVVisibility() end
@@ -293,8 +297,9 @@ end
 
 SpawnLoop(function()
     if not Alive then return false end
-    if not MyTeam then ScanPlayerGuiForTeam() end
-    task.wait(1)
+    if MyTeam then return true end
+    ScanPlayerGuiForTeam()
+    task.wait(3)
     return true
 end)
 
@@ -403,7 +408,10 @@ FOVGradient.Rotation = 0
 FOVGradient.Parent = FOVStroke
 
 SpawnLoop(function()
-    if not (FOVGradient and FOVGradient.Parent) then return false end
+    if not (FOVGradient and FOVGradient.Parent and FOVCircle and FOVCircle.Visible) then
+        task.wait(0.3)
+        return true
+    end
     FOVGradient.Rotation = (FOVGradient.Rotation + 5) % 360
     task.wait(0.1)
     return true
@@ -422,7 +430,7 @@ local FOVDotC = Instance.new("UICorner")
 FOVDotC.CornerRadius = UDim.new(1, 0)
 FOVDotC.Parent = FOVDot
 
-local function UpdateFOVVisibility()
+function UpdateFOVVisibility()
     if not Alive then return end
     local vis = Config.AimLock
     if FOVCircle and FOVCircle.Parent then FOVCircle.Visible = vis end
@@ -1118,16 +1126,17 @@ MakeTab("Главная", "аим и наводка", "Main")
 MakeTab("Визуалы", "esp", "Visuals")
 MakeTab("Конфиг", "настройки", "Config")
 
+local aimRayParams = RaycastParams.new()
+aimRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
 local function HasLineOfSight(targetChar, targetPart)
     local myChar = plr.Character
-    if not myChar or not myChar.Parent then return false end
+    if not myChar or not targetPart or not targetPart.Parent then return false end
     local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-    if not myHRP or not targetPart or not targetPart.Parent then return false end
+    if not myHRP then return false end
+    aimRayParams.FilterDescendantsInstances = {myChar, targetChar}
     local ok, result = pcall(function()
-        local rayParams = RaycastParams.new()
-        rayParams.FilterDescendantsInstances = {myChar, targetChar}
-        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-        return workspace:Raycast(myHRP.Position, targetPart.Position - myHRP.Position, rayParams)
+        return workspace:Raycast(myHRP.Position, targetPart.Position - myHRP.Position, aimRayParams)
     end)
     if not ok then return false end
     return result == nil
@@ -1153,27 +1162,29 @@ local function GetTargetPart(targetChar, requireLOS)
 end
 
 local function GetTargetPartStable(targetChar)
-    local now = tick()
-    if cachedTargetPart and (now - cachedTargetPartTime) < TARGET_PART_REFRESH
-        and cachedTargetPart.Parent == targetChar then
+    if cachedTargetPart and cachedTargetPart.Parent == targetChar then
         return cachedTargetPart
     end
     cachedTargetPart = GetTargetPart(targetChar, Config.IgnoreWalls)
-    cachedTargetPartTime = now
     return cachedTargetPart
+end
+
+local function IsInFront(cam, worldPos)
+    local toTarget = worldPos - cam.CFrame.Position
+    if toTarget.Magnitude < 0.001 then return false end
+    return cam.CFrame.LookVector:Dot(toTarget.Unit) > 0
 end
 
 local function GetClosestTarget()
     local cam = workspace.CurrentCamera
     if not cam then return nil, nil end
     local myChar = plr.Character
-    if not myChar then return nil, nil end
-    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myHRP then return nil, nil end
 
     local myPos = myHRP.Position
     local center = cam.ViewportSize / 2
-    local now = tick()
+    local now = os.clock()
 
     if CurrentTarget and CurrentTarget.Parent then
         local stillValid = true
@@ -1191,8 +1202,8 @@ local function GetClosestTarget()
         end
 
         if stillValid then
-            local sp, onScreen = cam:WorldToViewportPoint(head.Position)
-            local inFront = onScreen or sp.Z > 0
+            local sp = cam:WorldToViewportPoint(head.Position)
+            local inFront = IsInFront(cam, head.Position)
             local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
             if inFront and d <= FOV_SIZE * HOLD_MULT then
                 local part = GetTargetPartStable(CurrentTarget)
@@ -1215,6 +1226,7 @@ local function GetClosestTarget()
 
     local bestChar = nil
     local bestDist = math.huge
+    local bestPart = nil
 
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= plr and p.Character and p.Character.Parent and not IsTeammate(p) then
@@ -1223,16 +1235,17 @@ local function GetClosestTarget()
                 local head = p.Character:FindFirstChild("Head")
                 local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
                 if head and targetHRP then
-                    local sp, onScreen = cam:WorldToViewportPoint(head.Position)
-                    local inFront = onScreen or sp.Z > 0
-                    if inFront then
+                    if IsInFront(cam, head.Position) then
+                        local sp = cam:WorldToViewportPoint(head.Position)
                         local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
                         if screenDist <= FOV_SIZE then
                             local worldDist = (targetHRP.Position - myPos).Magnitude
                             if worldDist < bestDist then
-                                if (not Config.IgnoreWalls) or HasLineOfSight(p.Character, head) then
+                                local part = GetTargetPart(p.Character, Config.IgnoreWalls)
+                                if part then
                                     bestDist = worldDist
                                     bestChar = p.Character
+                                    bestPart = part
                                 end
                             end
                         end
@@ -1242,33 +1255,47 @@ local function GetClosestTarget()
         end
     end
 
-    if bestChar then
-        local part = GetTargetPart(bestChar, Config.IgnoreWalls)
-        if part and part.Parent then
-            CurrentTarget = bestChar
-            cachedTargetPlayer = Players:GetPlayerFromCharacter(bestChar)
-            cachedTargetPart = part
-            cachedTargetPartTime = now
-            lastValidTime = now
-            return bestChar, part
-        end
+    if bestChar and bestPart then
+        CurrentTarget = bestChar
+        cachedTargetPlayer = Players:GetPlayerFromCharacter(bestChar)
+        cachedTargetPart = bestPart
+        lastValidTime = now
+        return bestChar, bestPart
     end
     return nil, nil
 end
 
-local function AimStep()
+local function AimStep(dt)
     if not Alive then return end
     local ok, err = pcall(function()
         local myChar = plr.Character
         local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
         local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
         local cam = workspace.CurrentCamera
+        if not cam then return end
 
         if Config.AimLock then
-            local char, part = GetClosestTarget()
-            if char and part and part.Parent and cam then
-                cam.CFrame = CFrame.new(cam.CFrame.Position, part.Position)
-                if hum then hum.AutoRotate = false end
+            local now = os.clock()
+            if now - lastTargetSearch >= SEARCH_INTERVAL or not CurrentTarget or not CurrentTarget.Parent then
+                lastTargetSearch = now
+                local char, part = GetClosestTarget()
+                if char and part then
+                    CurrentTarget = char
+                    currentTargetPart = part
+                else
+                    CurrentTarget = nil
+                    currentTargetPart = nil
+                end
+            else
+                if CurrentTarget and CurrentTarget.Parent then
+                    currentTargetPart = GetTargetPartStable(CurrentTarget)
+                end
+            end
+
+            if currentTargetPart and currentTargetPart.Parent then
+                local goal = CFrame.new(cam.CFrame.Position, currentTargetPart.Position)
+                cam.CFrame = cam.CFrame:Lerp(goal, math.clamp(dt * 18, 0, 1))
+                if hum and hum.AutoRotate then hum.AutoRotate = false end
                 if bodyGyro and bodyGyro.Parent and hrp then
                     local look = cam.CFrame.LookVector
                     local flat = Vector3.new(look.X, 0, look.Z)
@@ -1278,9 +1305,7 @@ local function AimStep()
                 end
             end
         else
-            if hum and not hum.AutoRotate then
-                hum.AutoRotate = true
-            end
+            if hum and not hum.AutoRotate then hum.AutoRotate = true end
             if bodyGyro and bodyGyro.Parent then
                 bodyGyro:Destroy()
                 bodyGyro = nil
@@ -1297,17 +1322,28 @@ RunService:BindToRenderStep("ZepAimStep", AIM_PRIORITY, AimStep)
 MakeSection(PageMain, "Aim Assist")
 MakeToggle(PageMain, "Aim Lock", false, function(v)
     Config.AimLock = v
+    if v then
+        lastTargetSearch = 0
+        CurrentTarget = nil
+        currentTargetPart = nil
+        cachedTargetPart = nil
+        local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and not (bodyGyro and bodyGyro.Parent) then SetupBodyRotation(hrp) end
+    else
+        CurrentTarget = nil
+        currentTargetPart = nil
+        cachedTargetPart = nil
+        cachedTargetPlayer = nil
+    end
     if _G.ZepHub_UpdateFOV then _G.ZepHub_UpdateFOV() end
 end)
 MakeToggle(PageMain, "Игнорировать стены", false, function(v)
     Config.IgnoreWalls = v
     cachedTargetPart = nil
-    cachedTargetPartTime = 0
 end)
 MakeSlider(PageMain, "Шанс головы %", 0, 100, Config.HeadChance, function(v)
     Config.HeadChance = v
     cachedTargetPart = nil
-    cachedTargetPartTime = 0
 end)
 
 MakeSection(PageMain, "Статус")
@@ -1373,12 +1409,9 @@ local function UpdateESP()
         return
     end
 
-    local validChars = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= plr and p.Character then validChars[p.Character] = true end
-    end
     for char, hl in pairs(espTargets) do
-        if not validChars[char] or not char.Parent then
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not char or not char.Parent or not hum or hum.Health <= 0 then
             pcall(function() hl:Destroy() end)
             espTargets[char] = nil
         end
@@ -1415,7 +1448,7 @@ SpawnLoop(function()
 end)
 
 local function HopServer()
-    local now = tick()
+    local now = os.clock()
     if now - lastHopTime < HOP_COOLDOWN then
         local left = math.ceil(HOP_COOLDOWN - (now - lastHopTime))
         return false, "Подожди " .. left .. " сек"
@@ -1454,8 +1487,11 @@ local function HopServer()
     return true, "Хоп..."
 end
 
+local toastToken = 0
 local function showToast(text, color)
     if not (ScreenGui and ScreenGui.Parent) then return end
+    toastToken = toastToken + 1
+    local myToken = toastToken
     local old = ScreenGui:FindFirstChild("ZepToast")
     if old then old:Destroy() end
 
@@ -1495,6 +1531,7 @@ local function showToast(text, color)
     }):Play()
 
     task.delay(2.5, function()
+        if myToken ~= toastToken then return end
         if T and T.Parent then
             local t = TweenService:Create(T, TweenInfo.new(0.2), {
                 Position = UDim2.new(0.5, 0, 1, 20),
@@ -1512,6 +1549,7 @@ MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 18
     MyTeam = nil
     MyTeamColor = nil
     CurrentTarget = nil
+    currentTargetPart = nil
     cachedTargetPlayer = nil
     cachedTargetPart = nil
     if _G.ZepHub_UpdateFOV then _G.ZepHub_UpdateFOV() end
