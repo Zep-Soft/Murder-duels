@@ -1,4 +1,3 @@
-
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -10,6 +9,7 @@ local TeleportService = game:GetService("TeleportService")
 local plr = Players.LocalPlayer
 
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
+local SCRIPT_URL = "https://raw.githubusercontent.com/Zep-Soft/Murder-duels/refs/heads/main/md.lua"
 local MD_PLACE_ID = 120851538706364
 
 if game.PlaceId ~= MD_PLACE_ID then
@@ -59,6 +59,58 @@ if _G.ZepHub_Loaded then
     if old then old:Destroy() end
 end
 _G.ZepHub_Loaded = true
+
+local SESSION_FILE = "ZepHub_Session.json"
+
+local defaultSession = {
+    AimLock = false,
+    AimHold = false,
+    HeadChance = 75,
+    ESP = false,
+    IgnoreWalls = false,
+    FloatX = 0,
+    FloatY = 0,
+    FloatXScale = 0.02,
+    FloatYScale = 0.45,
+    HasPending = false,
+    LastHop = 0,
+}
+
+local Session = {}
+
+local function SaveSession()
+    pcall(function()
+        if writefile then
+            writefile(SESSION_FILE, HttpService:JSONEncode(Session))
+        end
+    end)
+end
+
+local function LoadSession()
+    pcall(function()
+        if isfile and isfile(SESSION_FILE) then
+            local raw = readfile(SESSION_FILE)
+            local decoded = HttpService:JSONDecode(raw)
+            if type(decoded) == "table" then
+                for k, v in pairs(decoded) do
+                    Session[k] = v
+                end
+            end
+        end
+    end)
+end
+
+for k, v in pairs(defaultSession) do
+    Session[k] = v
+end
+LoadSession()
+
+local isResume = false
+local PENDING_TIMEOUT = 120
+
+if Session.HasPending and (os.time() - (Session.LastHop or 0)) < PENDING_TIMEOUT then
+    isResume = true
+end
 
 local marker = Instance.new("Part")
 marker.Name = "ZepHubMarker"
@@ -128,13 +180,18 @@ local HOLD_MULT = 2.0
 local HOLD_TIME = 1.0
 
 local Config = {
-    AimLock = false,
-    AimHold = false,
-    HeadChance = 75,
-    ESP = false,
+    AimLock = isResume and Session.AimLock or false,
+    AimHold = isResume and Session.AimHold or false,
+    HeadChance = isResume and Session.HeadChance or 75,
+    ESP = isResume and Session.ESP or false,
     AntiAFK = false,
-    IgnoreWalls = false,
+    IgnoreWalls = isResume and Session.IgnoreWalls or false,
 }
+
+if isResume then
+    Session.HasPending = false
+    SaveSession()
+end
 
 local MyTeam = nil
 local MyTeamColor = nil
@@ -289,6 +346,8 @@ local function UpdateFOVVisibility()
     FOVCircle.Visible = visible
     FOVDot.Visible = visible
 end
+
+UpdateFOVVisibility()
 
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0.5, 0, 0.65, 0)
@@ -1014,16 +1073,22 @@ RunService:BindToRenderStep("ZepAimStep", RENDER_PRIORITY, function()
 end)
 
 MakeSection(PageMain, "Aim Assist")
-MakeToggle(PageMain, "Aim Lock (всегда)", false, function(v)
+MakeToggle(PageMain, "Aim Lock (всегда)", Config.AimLock, function(v)
     Config.AimLock = v
+    Session.AimLock = v
+    SaveSession()
     UpdateFOVVisibility()
 end)
-MakeToggle(PageMain, "Aim Hold (на ПКМ)", false, function(v)
+MakeToggle(PageMain, "Aim Hold (на ПКМ)", Config.AimHold, function(v)
     Config.AimHold = v
+    Session.AimHold = v
+    SaveSession()
     UpdateFOVVisibility()
 end)
-MakeToggle(PageMain, "Игнорировать стены", false, function(v)
+MakeToggle(PageMain, "Игнорировать стены", Config.IgnoreWalls, function(v)
     Config.IgnoreWalls = v
+    Session.IgnoreWalls = v
+    SaveSession()
 end)
 
 MakeSection(PageMain, "Статус")
@@ -1041,6 +1106,14 @@ TeamLabel.Parent = PageMain
 local TLC = Instance.new("UICorner")
 TLC.CornerRadius = UDim.new(0, 10)
 TLC.Parent = TeamLabel
+
+local TeamGrad = Instance.new("UIGradient")
+TeamGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+})
+TeamGrad.Rotation = 45
+TeamGrad.Parent = TeamLabel
 
 local TLStroke = Instance.new("UIStroke")
 TLStroke.Color = Theme.Stroke
@@ -1066,8 +1139,10 @@ task.spawn(function()
 end)
 
 MakeSection(PageVisuals, "ESP")
-MakeToggle(PageVisuals, "ESP игроков (без тиммейтов)", false, function(v)
+MakeToggle(PageVisuals, "ESP игроков (без тиммейтов)", Config.ESP, function(v)
     Config.ESP = v
+    Session.ESP = v
+    SaveSession()
 end)
 
 local espObjects = {}
@@ -1144,11 +1219,33 @@ local function ServerHop()
         return
     end
     local target = candidates[math.random(1, #candidates)]
+
+    Session.HasPending = true
+    Session.LastHop = os.time()
+    SaveSession()
+
+    local queueCode = 'loadstring(game:HttpGet("' .. SCRIPT_URL .. '"))()'
+
+    local queued = false
+    if syn and syn.queue_on_teleport then
+        queued = pcall(syn.queue_on_teleport, queueCode)
+    elseif queue_on_teleport then
+        queued = pcall(queue_on_teleport, queueCode)
+    elseif fluxus and fluxus.queue_on_teleport then
+        queued = pcall(fluxus.queue_on_teleport, queueCode)
+    end
+
+    if not queued then
+        warn("[Zep Hub] Server Hop: исполнитель не поддерживает queue_on_teleport — скрипт придётся запустить вручную")
+    end
+
     local ok, err = pcall(function()
         TeleportService:TeleportToPlaceInstance(placeId, target.id, plr)
     end)
     if not ok then
         warn("[Zep Hub] Server Hop: ошибка телепорта - " .. tostring(err))
+        Session.HasPending = false
+        SaveSession()
     end
 end
 
@@ -1235,7 +1332,12 @@ end)
 
 local FloatBtn = Instance.new("TextButton")
 FloatBtn.Size = UDim2.new(0.08, 0, 0.1, 0)
-FloatBtn.Position = UDim2.new(0.02, 0, 0.45, 0)
+FloatBtn.Position = UDim2.new(
+    Session.FloatXScale or 0.02,
+    Session.FloatX or 0,
+    Session.FloatYScale or 0.45,
+    Session.FloatY or 0
+)
 FloatBtn.BackgroundColor3 = Theme.Bg
 FloatBtn.Text = ""
 FloatBtn.BorderSizePixel = 0
@@ -1297,15 +1399,16 @@ FBIC2.CornerRadius = UDim.new(0, 4)
 FBIC2.Parent = FBInner
 
 local dragF = false
-local dragFS, dragFP
+local dragStart = nil
+local dragBasePos = nil
 local movedF = false
 
 FloatBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragF = true
         movedF = false
-        dragFS = input.Position
-        dragFP = FloatBtn.Position
+        dragStart = input.Position
+        dragBasePos = FloatBtn.AbsolutePosition
     end
 end)
 
@@ -1317,15 +1420,13 @@ end)
 
 UIS.InputChanged:Connect(function(input)
     if dragF and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local d = input.Position - dragFS
+        local d = input.Position - dragStart
         if math.abs(d.X) > 3 or math.abs(d.Y) > 3 then movedF = true end
-        local newX = dragFP.X.Offset + d.X
-        local newY = dragFP.Y.Offset + d.Y
         local vp = workspace.CurrentCamera.ViewportSize
         local btnSize = FloatBtn.AbsoluteSize
-        newX = math.clamp(newX, -btnSize.X / 2, vp.X - btnSize.X / 2)
-        newY = math.clamp(newY, -btnSize.Y / 2, vp.Y - btnSize.Y / 2)
-        FloatBtn.Position = UDim2.new(dragFP.X.Scale, newX, dragFP.Y.Scale, newY)
+        local newX = math.clamp(dragBasePos.X + d.X, 0, vp.X - btnSize.X)
+        local newY = math.clamp(dragBasePos.Y + d.Y, 0, vp.Y - btnSize.Y)
+        FloatBtn.Position = UDim2.fromOffset(newX, newY)
     end
 end)
 
@@ -1367,6 +1468,14 @@ end)
 
 CloseBtn.MouseButton1Click:Connect(function()
     UnloadAll()
+end)
+
+FloatBtn:GetPropertyChangedSignal("Position"):Connect(function()
+    Session.FloatX = FloatBtn.Position.X.Offset
+    Session.FloatY = FloatBtn.Position.Y.Offset
+    Session.FloatXScale = FloatBtn.Position.X.Scale
+    Session.FloatYScale = FloatBtn.Position.Y.Scale
+    SaveSession()
 end)
 
 print("Zep Hub Murder Duels loaded")
