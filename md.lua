@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local TextChatService = game:GetService("TextChatService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local ContextActionService = game:GetService("ContextActionService")
 local plr = Players.LocalPlayer
 
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
@@ -1338,13 +1339,7 @@ MakeButton(PageConfig, "Выгрузить UI", Color3.fromRGB(255, 60, 80), fun
 end)
 
 local FloatBtn = Instance.new("TextButton")
-FloatBtn.Size = UDim2.new(0.08, 0, 0.1, 0)
-FloatBtn.Position = UDim2.new(
-    Session.FloatXScale or 0.02,
-    Session.FloatX or 0,
-    Session.FloatYScale or 0.45,
-    Session.FloatY or 0
-)
+FloatBtn.Size = UDim2.new(0, 56, 0, 56)
 FloatBtn.BackgroundColor3 = Theme.Bg
 FloatBtn.Text = ""
 FloatBtn.BorderSizePixel = 0
@@ -1405,47 +1400,87 @@ local FBIC2 = Instance.new("UICorner")
 FBIC2.CornerRadius = UDim.new(0, 4)
 FBIC2.Parent = FBInner
 
+task.defer(function()
+    local vp = workspace.CurrentCamera.ViewportSize
+    local bx = (Session.FloatXScale or 0.02) * vp.X
+    local by = (Session.FloatYScale or 0.45) * vp.Y
+    if (Session.FloatX or 0) ~= 0 or (Session.FloatY or 0) ~= 0 then
+        bx = Session.FloatX
+        by = Session.FloatY
+    end
+    bx = math.clamp(bx, 0, vp.X - 56)
+    by = math.clamp(by, 0, vp.Y - 56)
+    FloatBtn.Position = UDim2.fromOffset(bx, by)
+end)
+
 local dragF = false
-local dragFS, dragFP
+local dragStart = nil
+local dragBaseOffset = nil
 local movedF = false
 
-FloatBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragF = true
-        movedF = false
-        dragFS = input.Position
-        dragFP = FloatBtn.Position
-    end
-end)
+local function GetTouchPos(input)
+    return Vector2.new(input.Position.X, input.Position.Y)
+end
 
-FloatBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragF = false
-    end
-end)
+local function IsPointOnBtn(pos)
+    local ap = FloatBtn.AbsolutePosition
+    local asz = FloatBtn.AbsoluteSize
+    return pos.X >= ap.X and pos.X <= ap.X + asz.X
+        and pos.Y >= ap.Y and pos.Y <= ap.Y + asz.Y
+end
 
-UIS.InputChanged:Connect(function(input)
-    if dragF and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local d = input.Position - dragFS
-        if math.abs(d.X) > 3 or math.abs(d.Y) > 3 then movedF = true end
-        local newX = dragFP.X.Offset + d.X
-        local newY = dragFP.Y.Offset + d.Y
-        local vp = workspace.CurrentCamera.ViewportSize
-        local btnSize = FloatBtn.AbsoluteSize
-        newX = math.clamp(newX, -btnSize.X / 2, vp.X - btnSize.X / 2)
-        newY = math.clamp(newY, -btnSize.Y / 2, vp.Y - btnSize.Y / 2)
-        FloatBtn.Position = UDim2.new(dragFP.X.Scale, newX, dragFP.Y.Scale, newY)
+local function OnTouchBegin(actionName, inputState, inputObject)
+    if inputState ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
+    if inputObject.UserInputType ~= Enum.UserInputType.Touch then
+        return Enum.ContextActionResult.Pass
     end
-end)
+    local pos = GetTouchPos(inputObject)
+    if not IsPointOnBtn(pos) then return Enum.ContextActionResult.Pass end
+    dragF = true
+    movedF = false
+    dragStart = pos
+    dragBaseOffset = Vector2.new(FloatBtn.Position.X.Offset, FloatBtn.Position.Y.Offset)
+    return Enum.ContextActionResult.Sink
+end
 
-FloatBtn.MouseButton1Click:Connect(function()
-    if movedF then return end
-    if uiOpen then
-        CloseUI()
-    else
-        OpenUI()
+local function OnTouchMove(actionName, inputState, inputObject)
+    if not dragF then return Enum.ContextActionResult.Pass end
+    if inputState ~= Enum.UserInputState.Change then return Enum.ContextActionResult.Pass end
+    local cur = GetTouchPos(inputObject)
+    local d = cur - dragStart
+    if math.abs(d.X) > 5 or math.abs(d.Y) > 5 then movedF = true end
+    if not movedF then return Enum.ContextActionResult.Sink end
+    local vp = workspace.CurrentCamera.ViewportSize
+    local btnSize = FloatBtn.AbsoluteSize
+    local newX = math.clamp(dragBaseOffset.X + d.X, 0, vp.X - btnSize.X)
+    local newY = math.clamp(dragBaseOffset.Y + d.Y, 0, vp.Y - btnSize.Y)
+    FloatBtn.Position = UDim2.fromOffset(newX, newY)
+    return Enum.ContextActionResult.Sink
+end
+
+local function OnTouchEnd(actionName, inputState, inputObject)
+    if not dragF then return Enum.ContextActionResult.Pass end
+    if inputState ~= Enum.UserInputState.End and inputState ~= Enum.UserInputState.Cancel then
+        return Enum.ContextActionResult.Pass
     end
-end)
+    local wasMove = movedF
+    dragF = false
+    movedF = false
+    dragStart = nil
+    dragBaseOffset = nil
+    if not wasMove then
+        if uiOpen then
+            CloseUI()
+        else
+            OpenUI()
+        end
+    end
+    return Enum.ContextActionResult.Sink
+end
+
+ContextActionService:BindActionAtPriority("ZepFloatBegin", OnTouchBegin, false, 10000, Enum.UserInputType.Touch)
+ContextActionService:BindActionAtPriority("ZepFloatMove", OnTouchMove, false, 10000, Enum.UserInputType.Touch)
+ContextActionService:BindActionAtPriority("ZepFloatEnd", OnTouchEnd, false, 10000, Enum.UserInputType.Touch)
 
 local dragM = false
 local dragMS, dragMP
@@ -1481,8 +1516,8 @@ end)
 FloatBtn:GetPropertyChangedSignal("Position"):Connect(function()
     Session.FloatX = FloatBtn.Position.X.Offset
     Session.FloatY = FloatBtn.Position.Y.Offset
-    Session.FloatXScale = FloatBtn.Position.X.Scale
-    Session.FloatYScale = FloatBtn.Position.Y.Scale
+    Session.FloatXScale = 0
+    Session.FloatYScale = 0
     SaveSession()
 end)
 
