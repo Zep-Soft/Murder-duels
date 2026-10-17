@@ -815,7 +815,8 @@ local function MakeTab(name, subtitle, pageName)
         ActiveTab = Btn
         SetActive(true)
         SwitchPage(pageName)
-    endend
+    end
+end
 
 local function MakeSection(parent, text)
     local S = Instance.new("TextLabel")
