@@ -68,7 +68,7 @@ marker.CanQuery = false
 marker.CanTouch = false
 marker.Parent = workspace.CurrentCamera
 
-local markerThread = task.spawn(function()
+task.spawn(function()
     while marker and marker.Parent do
         task.wait(0.5)
         local myChar = plr.Character
@@ -79,7 +79,7 @@ local markerThread = task.spawn(function()
     end
 end)
 
-local resetThread = task.spawn(function()
+task.spawn(function()
     while true do
         task.wait(10)
         pcall(function()
@@ -291,6 +291,7 @@ local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0.5, 0, 0.65, 0)
 Main.Position = UDim2.new(0.25, 0, 0.175, 0)
 Main.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
+Main.BackgroundTransparency = 0
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
 Main.Visible = true
@@ -430,13 +431,13 @@ Version.ZIndex = 3
 Version.Parent = TopBar
 
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
-MinBtn.Position = UDim2.new(0.82, 0, 0.15, 0)
-MinBtn.BackgroundColor3 = Theme.Surface2
+MinBtn.Size = UDim2.new(0, 32, 0, 32)
+MinBtn.Position = UDim2.new(1, -80, 0.5, -16)
+MinBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
 MinBtn.Text = "−"
-MinBtn.TextColor3 = Theme.Text
+MinBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
 MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 24
+MinBtn.TextSize = 22
 MinBtn.TextScaled = false
 MinBtn.BorderSizePixel = 0
 MinBtn.AutoButtonColor = false
@@ -448,13 +449,13 @@ MinC.CornerRadius = UDim.new(0, 9)
 MinC.Parent = MinBtn
 
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
-CloseBtn.Position = UDim2.new(0.93, 0, 0.15, 0)
-CloseBtn.BackgroundColor3 = Theme.Surface2
+CloseBtn.Size = UDim2.new(0, 32, 0, 32)
+CloseBtn.Position = UDim2.new(1, -42, 0.5, -16)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 50)
 CloseBtn.Text = "×"
-CloseBtn.TextColor3 = Theme.Text
+CloseBtn.TextColor3 = Color3.fromRGB(245, 245, 255)
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 24
+CloseBtn.TextSize = 22
 CloseBtn.TextScaled = false
 CloseBtn.BorderSizePixel = 0
 CloseBtn.AutoButtonColor = false
@@ -473,21 +474,21 @@ CloseBtn.MouseEnter:Connect(function()
 end)
 CloseBtn.MouseLeave:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Surface2,
-        TextColor3 = Theme.Text,
+        BackgroundColor3 = Color3.fromRGB(34, 34, 50),
+        TextColor3 = Color3.fromRGB(245, 245, 255),
     }):Play()
 end)
 
 MinBtn.MouseEnter:Connect(function()
     TweenService:Create(MinBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Accent,
+        BackgroundColor3 = Color3.fromRGB(255, 50, 100),
         TextColor3 = Color3.fromRGB(255, 255, 255),
     }):Play()
 end)
 MinBtn.MouseLeave:Connect(function()
     TweenService:Create(MinBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Theme.Surface2,
-        TextColor3 = Theme.Text,
+        BackgroundColor3 = Color3.fromRGB(34, 34, 50),
+        TextColor3 = Color3.fromRGB(245, 245, 255),
     }):Play()
 end)
 
@@ -526,9 +527,15 @@ SideLineG.Parent = SideLine
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(0.72, 0, 0.87, 0)
 Content.Position = UDim2.new(0.28, 0, 0.13, 0)
-Content.BackgroundTransparency = 1
-Content.ZIndex = 5
+Content.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
+Content.BackgroundTransparency = 0
+Content.BorderSizePixel = 0
+Content.ZIndex = 4
 Content.Parent = Main
+
+local ContentC = Instance.new("UICorner")
+ContentC.CornerRadius = UDim.new(0, 18)
+ContentC.Parent = Content
 
 local Pages = {}
 
@@ -547,15 +554,15 @@ local function MakePage(name)
     P.Parent = Content
 
     local Pad = Instance.new("UIPadding")
-    Pad.PaddingTop = UDim.new(0, 10)
-    Pad.PaddingBottom = UDim.new(0, 10)
-    Pad.PaddingLeft = UDim.new(0, 10)
-    Pad.PaddingRight = UDim.new(0, 10)
+    Pad.PaddingTop = UDim.new(0, 12)
+    Pad.PaddingBottom = UDim.new(0, 12)
+    Pad.PaddingLeft = UDim.new(0, 12)
+    Pad.PaddingRight = UDim.new(0, 12)
     Pad.Parent = P
 
     local Layout = Instance.new("UIListLayout")
     Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Padding = UDim.new(0, 8)
+    Layout.Padding = UDim.new(0, 10)
     Layout.Parent = P
 
     Pages[name] = P
@@ -695,12 +702,18 @@ local function MakeSection(parent, text)
     S.Size = UDim2.new(1, 0, 0, 20)
     S.BackgroundTransparency = 1
     S.Text = string.upper(text)
-    S.TextColor3 = Theme.Accent
+    S.TextColor3 = Theme.Accent3
     S.Font = Enum.Font.GothamBold
-    S.TextSize = 10
+    S.TextSize = 11
     S.TextXAlignment = Enum.TextXAlignment.Left
     S.ZIndex = 6
     S.Parent = parent
+
+    local SStroke = Instance.new("UIStroke")
+    SStroke.Color = Color3.fromRGB(0, 0, 0)
+    SStroke.Thickness = 1
+    SStroke.Transparency = 0.5
+    SStroke.Parent = S
 end
 
 local function MakeToggle(parent, text, default, callback)
@@ -717,16 +730,16 @@ local function MakeToggle(parent, text, default, callback)
 
     local CG = Instance.new("UIGradient")
     CG.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 28, 46)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 20, 32)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 36, 54)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 26, 40)),
     })
     CG.Rotation = 45
     CG.Parent = C
 
     local CS = Instance.new("UIStroke")
-    CS.Color = Theme.Stroke
+    CS.Color = Color3.fromRGB(60, 60, 85)
     CS.Thickness = 1
-    CS.Transparency = 0.4
+    CS.Transparency = 0.2
     CS.Parent = C
 
     local Lbl = Instance.new("TextLabel")
@@ -810,6 +823,27 @@ local function MakeButton(parent, text, color, callback)
     local BC = Instance.new("UICorner")
     BC.CornerRadius = UDim.new(0, 12)
     BC.Parent = Btn
+
+    local BG = Instance.new("UIGradient")
+    BG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color or Theme.Accent),
+        ColorSequenceKeypoint.new(1, Theme.Accent2),
+    })
+    BG.Rotation = 45
+    BG.Parent = Btn
+
+    local BtnStroke = Instance.new("UIStroke")
+    BtnStroke.Color = Color3.fromRGB(255, 255, 255)
+    BtnStroke.Thickness = 1
+    BtnStroke.Transparency = 0.85
+    BtnStroke.Parent = Btn
+
+    Btn.MouseEnter:Connect(function()
+        TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Transparency = 0.5}):Play()
+    end)
+    Btn.MouseLeave:Connect(function()
+        TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Transparency = 0.85}):Play()
+    end)
 
     Btn.MouseButton1Click:Connect(function()
         if callback then callback() end
@@ -991,12 +1025,13 @@ end)
 
 MakeSection(PageMain, "Статус")
 local TeamLabel = Instance.new("TextLabel")
-TeamLabel.Size = UDim2.new(1, 0, 0, 30)
+TeamLabel.Size = UDim2.new(1, 0, 0, 34)
 TeamLabel.BackgroundColor3 = Theme.Surface2
 TeamLabel.Text = "Команда: определяется..."
-TeamLabel.TextColor3 = Theme.Text
+TeamLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TeamLabel.Font = Enum.Font.GothamMedium
 TeamLabel.TextSize = 12
+TeamLabel.TextXAlignment = Enum.TextXAlignment.Center
 TeamLabel.ZIndex = 6
 TeamLabel.Parent = PageMain
 
@@ -1011,6 +1046,12 @@ TeamGrad.Color = ColorSequence.new({
 })
 TeamGrad.Rotation = 45
 TeamGrad.Parent = TeamLabel
+
+local TLStroke = Instance.new("UIStroke")
+TLStroke.Color = Theme.Stroke
+TLStroke.Thickness = 1
+TLStroke.Transparency = 0.4
+TLStroke.Parent = TeamLabel
 
 task.spawn(function()
     local lastTeam = nil
@@ -1093,6 +1134,48 @@ MakeButton(PageConfig, "Сбросить команду", Color3.fromRGB(255, 18
     CurrentTarget = nil
     cachedTargetPlayer = nil
 end)
+
+local uiOpen = true
+local uiAnimating = false
+local baseSize = UDim2.new(0.5, 0, 0.65, 0)
+local basePos = UDim2.new(0.25, 0, 0.175, 0)
+
+local function OpenUI()
+    if uiOpen or uiAnimating then return end
+    uiAnimating = true
+    Main.Visible = true
+    Main.Size = UDim2.new(0.4, 0, 0.5, 0)
+    Main.Position = UDim2.new(0.3, 0, 0.25, 0)
+    Main.BackgroundTransparency = 1
+    local t = TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        Size = baseSize,
+        Position = basePos,
+        BackgroundTransparency = 0,
+    })
+    t:Play()
+    t.Completed:Wait()
+    Main.BackgroundTransparency = 0
+    uiOpen = true
+    uiAnimating = false
+end
+
+local function CloseUI()
+    if not uiOpen or uiAnimating then return end
+    uiAnimating = true
+    local t = TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+        Size = UDim2.new(0.4, 0, 0.5, 0),
+        Position = UDim2.new(0.3, 0, 0.25, 0),
+        BackgroundTransparency = 1,
+    })
+    t:Play()
+    t.Completed:Wait()
+    Main.Visible = false
+    Main.Size = baseSize
+    Main.Position = basePos
+    Main.BackgroundTransparency = 0
+    uiOpen = false
+    uiAnimating = false
+end
 
 local function UnloadAll()
     Config.AimLock = false
@@ -1218,17 +1301,19 @@ end)
 
 FloatBtn.MouseButton1Click:Connect(function()
     if movedF then return end
-    Main.Visible = not Main.Visible
+    if uiOpen then
+        CloseUI()
+    else
+        OpenUI()
+    end
 end)
 
 local dragM = false
 local dragMS, dragMP
-local dragMoved = false
 
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragM = true
-        dragMoved = false
         dragMS = input.Position
         dragMP = Main.Position
     end
@@ -1241,13 +1326,13 @@ end)
 UIS.InputChanged:Connect(function(input)
     if dragM and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local d = input.Position - dragMS
-        if math.abs(d.X) > 2 or math.abs(d.Y) > 2 then dragMoved = true end
         Main.Position = UDim2.new(dragMP.X.Scale, dragMP.X.Offset + d.X, dragMP.Y.Scale, dragMP.Y.Offset + d.Y)
+        basePos = Main.Position
     end
 end)
 
 MinBtn.MouseButton1Click:Connect(function()
-    Main.Visible = false
+    CloseUI()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
