@@ -6,6 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local TextChatService = game:GetService("TextChatService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local GuiService = game:GetService("GuiService")
 local plr = Players.LocalPlayer
 
 local RESET_URL = "https://pastebin.com/raw/HX4JWFfS"
@@ -72,6 +73,8 @@ local defaultSession = {
     FloatY = 0,
     FloatXScale = 0.02,
     FloatYScale = 0.45,
+    MainX = 0,
+    MainY = 0,
     HasPending = false,
     LastHop = 0,
 }
@@ -1493,17 +1496,20 @@ end)
 
 local dragM = false
 local dragStartM = nil
-local mainStartM = nil
+local mainStartX = 0
+local mainStartY = 0
 local dragMConn = nil
 
 local function endDragM()
     dragM = false
     dragStartM = nil
-    mainStartM = nil
     if dragMConn then
         dragMConn:Disconnect()
         dragMConn = nil
     end
+    Session.MainX = Main.Position.X.Offset
+    Session.MainY = Main.Position.Y.Offset
+    SaveSession()
 end
 
 TopBar.InputBegan:Connect(function(input)
@@ -1511,7 +1517,8 @@ TopBar.InputBegan:Connect(function(input)
     or input.UserInputType == Enum.UserInputType.Touch then
         dragM = true
         dragStartM = Vector2.new(input.Position.X, input.Position.Y)
-        mainStartM = Vector2.new(Main.AbsolutePosition.X, Main.AbsolutePosition.Y)
+        mainStartX = Main.Position.X.Offset
+        mainStartY = Main.Position.Y.Offset
 
         dragMConn = UIS.InputChanged:Connect(function(changed)
             if not dragM then return end
@@ -1522,10 +1529,12 @@ TopBar.InputBegan:Connect(function(input)
             local delta = cur - dragStartM
             local vp = workspace.CurrentCamera.ViewportSize
             local mainSize = Main.AbsoluteSize
+            if mainSize.X <= 0 or mainSize.Y <= 0 then
+                mainSize = Vector2.new(vp.X * 0.5, vp.Y * 0.65)
+            end
 
-            local newX = math.clamp(mainStartM.X + delta.X, 0, vp.X - mainSize.X)
-            local newY = math.clamp(mainStartM.Y + delta.Y, 0, vp.Y - mainSize.Y)
-
+            local newX = math.clamp(mainStartX + delta.X, 0, vp.X - mainSize.X)
+            local newY = math.clamp(mainStartY + delta.Y, 0, vp.Y - mainSize.Y)
             Main.Position = UDim2.fromOffset(newX, newY)
         end)
     end
