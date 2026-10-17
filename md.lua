@@ -1420,6 +1420,7 @@ local dragStart = nil
 local dragBaseOffset = nil
 local movedF = false
 local activeTouch = nil
+local touchStartedOnBtn = false
 
 local function IsPointOnBtn(pos)
     local ap = FloatBtn.AbsolutePosition
@@ -1432,6 +1433,7 @@ UIS.TouchStarted:Connect(function(touch, gameProcessed)
     if gameProcessed then return end
     if not IsPointOnBtn(touch.Position) then return end
     activeTouch = touch
+    touchStartedOnBtn = true
     dragF = true
     movedF = false
     dragStart = Vector2.new(touch.Position.X, touch.Position.Y)
@@ -1442,7 +1444,8 @@ UIS.TouchMoved:Connect(function(touch, gameProcessed)
     if not dragF or touch ~= activeTouch then return end
     local cur = Vector2.new(touch.Position.X, touch.Position.Y)
     local d = cur - dragStart
-    if math.abs(d.X) > 3 or math.abs(d.Y) > 3 then movedF = true end
+    if math.abs(d.X) > 8 or math.abs(d.Y) > 8 then movedF = true end
+    if not movedF then return end
     local vp = workspace.CurrentCamera.ViewportSize
     local btnSize = FloatBtn.AbsoluteSize
     local newX = math.clamp(dragBaseOffset.X + d.X, 0, vp.X - btnSize.X)
@@ -1452,28 +1455,20 @@ end)
 
 UIS.TouchEnded:Connect(function(touch, gameProcessed)
     if touch ~= activeTouch then return end
+    local wasOnBtn = touchStartedOnBtn
+    local didMove = movedF
     dragF = false
     activeTouch = nil
     dragStart = nil
     dragBaseOffset = nil
-end)
-
-local lastTap = 0
-
-FloatBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        lastTap = tick()
-    end
-end)
-
-FloatBtn.InputEnded:Connect(function(input)
-    if input.UserInputType ~= Enum.UserInputType.Touch then return end
-    if movedF then return end
-    if tick() - lastTap > 0.5 then return end
-    if uiOpen then
-        CloseUI()
-    else
-        OpenUI()
+    touchStartedOnBtn = false
+    movedF = false
+    if wasOnBtn and not didMove then
+        if uiOpen then
+            CloseUI()
+        else
+            OpenUI()
+        end
     end
 end)
 
