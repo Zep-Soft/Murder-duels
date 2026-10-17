@@ -281,12 +281,17 @@ local function AmIReady()
     return MyTeam ~= nil and MyTeam ~= "Lobby"
 end
 
+local function StatsReady()
+    return next(matchData.knownA) ~= nil or next(matchData.knownB) ~= nil
+end
+
 task.spawn(function()
     local pg = plr:WaitForChild("PlayerGui", 15)
     if not pg then return end
     while true do
         task.wait(1)
         pcall(function()
+            local ready = StatsReady()
             local tb = pg:FindFirstChild("TopbarStandard")
             if tb then
                 local holders = tb:FindFirstChild("Holders")
@@ -295,7 +300,7 @@ task.spawn(function()
                     if right then
                         local plist = right:FindFirstChild("PlayerList")
                         if plist and plist:IsA("GuiObject") then
-                            plist.Visible = false
+                            plist.Visible = not ready
                         end
                     end
                 end
@@ -304,7 +309,7 @@ task.spawn(function()
             if hud then
                 for _, d in ipairs(hud:GetDescendants()) do
                     if d.Name == "MatchLeaderboard" and d:IsA("GuiObject") then
-                        d.Visible = false
+                        d.Visible = not ready
                     end
                 end
             end
@@ -327,6 +332,7 @@ StatsBtn.Text = ""
 StatsBtn.BorderSizePixel = 0
 StatsBtn.AutoButtonColor = false
 StatsBtn.ZIndex = 40
+StatsBtn.Visible = false
 StatsBtn.Parent = ScreenGui
 
 local SB_Corner = Instance.new("UICorner")
@@ -953,6 +959,13 @@ task.spawn(function()
         if statsOpen then
             refreshOverlay()
         end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        StatsBtn.Visible = StatsReady()
     end
 end)
 
